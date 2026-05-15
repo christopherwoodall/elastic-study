@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<!--
+python -m http.server 8080
+curl -s -I -H "Origin: http://localhost:8080" http://localhost:9200/
+curl -s http://localhost:9200/_nodes/settings | python3 -m json.tool | grep -i cors
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ES Explorer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg0: #0f1117;
+    --bg1: #171923;
+    --bg2: #1e2130;
+    --bg3: #262b3e;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text0: #e8eaf0;
+    --text1: #9aa0b4;
+    --text2: #5a6080;
+    --accent: #4f8ef7;
+    --accent2: #7c6fcd;
+    --green: #3ecf8e;
+    --yellow: #f6c90e;
+    --red: #f06565;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    --sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg0);
+    color: var(--text0);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── NAV ── */
+  nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 24px;
+    height: 52px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg1);
+    flex-shrink: 0;
+  }
+  .nav-brand {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    color: var(--text0);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nav-brand span.dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2.5s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .nav-host {
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--text2);
+    background: var(--bg3);
+    padding: 3px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  nav input#host-input {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text0);
+    padding: 3px 10px;
+    border-radius: 4px;
+    width: 220px;
+    display: none;
+  }
+  nav input#host-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .nav-sep { flex: 1; }
+  .nav-btn {
+    font-size: 12px;
+    background: var(--bg3);
+    color: var(--text1);
+    border: 1px solid var(--border);
+    padding: 4px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .nav-btn:hover { background: var(--bg2); color: var(--text0); }
+  .nav-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* ── LAYOUT ── */
+  .shell {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* ── SIDEBAR ── */
+  aside {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--bg1);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 12px 0;
+  }
+  .sidebar-section {
+    padding: 0 16px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text2);
+    margin: 16px 0 6px;
+  }
+  .idx-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text1);
+    transition: background .12s, color .12s;
+    border-left: 2px solid transparent;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .idx-item:hover { background: var(--bg2); color: var(--text0); }
+  .idx-item.active {
+    background: rgba(79,142,247,.12);
+    color: var(--accent);
+    border-left-color: var(--accent);
+  }
+  .idx-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot-g { background: var(--green); }
+  .dot-y { background: var(--yellow); }
+  .dot-r { background: var(--red); }
+
+  .sidebar-loading {
+    padding: 12px 16px;
+    font-size: 12px;
+    color: var(--text2);
+    animation: flicker 1.2s ease-in-out infinite;
+  }
+  @keyframes flicker { 0%,100%{opacity:.5} 50%{opacity:1} }
+
+  /* ── MAIN ── */
+  main {
+    flex: 1;
+    overflow-y: auto;
+    min-width: 0;
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0;
+    flex-shrink: 0;
+  }
+  .tab {
+    font-size: 13px;
+    padding: 6px 14px;
+    cursor: pointer;
+    color: var(--text1);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color .15s, border-color .15s;
+    border-radius: 4px 4px 0 0;
+  }
+  .tab:hover { color: var(--text0); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── CARDS / PANELS ── */
+  .card {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg2);
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text0);
+    flex: 1;
+  }
+  .card-body { padding: 16px; }
+
+  /* ── STAT GRID ── */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+  }
+  .stat {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .stat-label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  .stat-val { font-size: 22px; font-weight: 600; color: var(--text0); font-family: var(--mono); }
+  .stat-sub { font-size: 11px; color: var(--text1); margin-top: 2px; }
+
+  /* ── MAPPING TABLE ── */
+  .map-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .map-table th {
+    text-align: left;
+    padding: 7px 12px;
+    color: var(--text2);
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    border-bottom: 1px solid var(--border);
+  }
+  .map-table td {
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text1);
+    vertical-align: top;
+  }
+  .map-table tr:last-child td { border-bottom: none; }
+  .map-table tr:hover td { background: var(--bg2); }
+  .field-name { color: var(--text0); font-family: var(--mono); font-size: 12px; }
+  .indent-1 { padding-left: 28px !important; }
+  .indent-2 { padding-left: 48px !important; }
+  .type-badge {
+    font-size: 11px;
+    font-family: var(--mono);
+    padding: 2px 7px;
+    border-radius: 4px;
+    display: inline-block;
+  }
+  .type-kw   { background: rgba(79,142,247,.15); color: #7eb0fa; }
+  .type-text { background: rgba(124,111,205,.15); color: #a09de8; }
+  .type-date { background: rgba(246,201,14,.12); color: #e0bc2a; }
+  .type-num  { background: rgba(62,207,142,.12); color: #4bcf96; }
+  .type-obj  { background: rgba(240,101,101,.1); color: #f08080; }
+  .type-bool { background: rgba(255,140,0,.12); color: #ffae44; }
+  .type-def  { background: var(--bg3); color: var(--text1); }
+
+  /* ── DOCS TABLE ── */
+  .docs-toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .docs-toolbar input[type=text] {
+    font-size: 13px;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    color: var(--text0);
+    padding: 6px 12px;
+    border-radius: 6px;
+    flex: 1;
+    min-width: 180px;
+  }
+  .docs-toolbar input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .docs-toolbar select {
+    font-size: 12px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text1);
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .docs-toolbar button {
+    font-size: 12px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity .15s;
+  }
+  .docs-toolbar button:hover { opacity: .85; }
+  .docs-toolbar button.secondary {
+    background: var(--bg3);
+    color: var(--text1);
+    border: 1px solid var(--border);
+  }
+
+  /* ── HITS CARDS ── */
+  .hit {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  .hit-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+  }
+  .hit-id { font-size: 12px; font-family: var(--mono); color: var(--accent); flex: 1; }
+  .hit-score { font-size: 11px; color: var(--text2); }
+  .hit-toggle { font-size: 12px; color: var(--text2); }
+  .hit-body { padding: 12px 14px; display: none; }
+  .hit-body.open { display: block; }
+  .hit-fields { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; font-size: 12px; }
+  .hit-key { color: var(--text2); font-family: var(--mono); white-space: nowrap; padding: 2px 0; }
+  .hit-val { color: var(--text0); font-family: var(--mono); word-break: break-all; padding: 2px 0; }
+  .hit-val.json-block {
+    display: block;
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 8px 10px;
+    white-space: pre-wrap;
+    font-size: 11px;
+    max-height: 260px;
+    overflow-y: auto;
+    line-height: 1.6;
+  }
+
+  /* ── LLM LOG SPECIFIC ── */
+  .log-row {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+  .log-header {
+    display: grid;
+    grid-template-columns: 160px 60px 1fr auto auto;
+    gap: 12px;
+    align-items: center;
+    padding: 9px 14px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .log-header:hover { background: var(--bg3); }
+  .log-ts { font-size: 11px; font-family: var(--mono); color: var(--text2); }
+  .log-method { font-size: 11px; font-family: var(--mono); font-weight: 600; color: var(--yellow); }
+  .log-path { font-size: 12px; font-family: var(--mono); color: var(--text1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .status-badge {
+    font-size: 11px; font-family: var(--mono);
+    padding: 2px 7px; border-radius: 4px; font-weight: 600;
+  }
+  .s-2xx { background: rgba(62,207,142,.15); color: var(--green); }
+  .s-4xx { background: rgba(240,101,101,.15); color: var(--red); }
+  .s-5xx { background: rgba(240,101,101,.25); color: #ff8080; }
+  .log-model { font-size: 11px; color: var(--accent2); font-family: var(--mono); }
+  .log-detail { display: none; padding: 14px; border-top: 1px solid var(--border); }
+  .log-detail.open { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .detail-section h4 { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+  .detail-section pre {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 10px;
+    font-size: 11px;
+    font-family: var(--mono);
+    overflow: auto;
+    max-height: 320px;
+    white-space: pre-wrap;
+    color: var(--text0);
+    line-height: 1.6;
+  }
+  .log-meta { display: flex; gap: 16px; margin-bottom: 10px; flex-wrap: wrap; }
+  .log-meta-item { font-size: 12px; color: var(--text1); }
+  .log-meta-item span { color: var(--text0); font-family: var(--mono); }
+
+  /* ── PAGINATION ── */
+  .pagination {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text2);
+    margin-top: 4px;
+  }
+  .page-btn {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text1);
+    padding: 4px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background .12s;
+  }
+  .page-btn:hover { background: var(--bg3); color: var(--text0); }
+  .page-btn:disabled { opacity: .35; cursor: default; }
+
+  /* ── MISC ── */
+  .empty { color: var(--text2); font-size: 13px; padding: 24px; text-align: center; }
+  .err { color: var(--red); font-size: 13px; padding: 12px; background: rgba(240,101,101,.08); border-radius: var(--radius); border: 1px solid rgba(240,101,101,.2); }
+  .loading-spinner { color: var(--text2); font-size: 13px; padding: 24px; text-align: center; animation: flicker 1s infinite; }
+  .placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    height: 100%;
+    color: var(--text2);
+    font-size: 14px;
+    min-height: 240px;
+  }
+  .placeholder-icon { font-size: 36px; opacity: .3; }
+
+  /* small util */
+  .row { display: flex; gap: 8px; align-items: center; }
+  .ml-auto { margin-left: auto; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: var(--bg3); color: var(--text1); border: 1px solid var(--border); }
+  .tag.green { background: rgba(62,207,142,.1); color: var(--green); border-color: rgba(62,207,142,.2); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">
+    <span class="dot" id="conn-dot"></span>
+    ES Explorer
+  </div>
+  <input id="host-input" type="text" placeholder="http://localhost:9200" value="http://localhost:9200">
+  <div class="nav-host" id="host-display">localhost:9200</div>
+  <div class="nav-sep"></div>
+  <button class="nav-btn" id="btn-edit-host">Edit host</button>
+  <button class="nav-btn" id="btn-refresh" onclick="loadIndices()">↻ Refresh</button>
+</nav>
+
+<div class="shell">
+  <aside id="sidebar">
+    <div class="sidebar-section">Indices</div>
+    <div class="sidebar-loading" id="sidebar-loading">Loading…</div>
+    <div id="index-list"></div>
+  </aside>
+
+  <main id="main-content">
+    <div class="placeholder" id="placeholder">
+      <div class="placeholder-icon">⬡</div>
+      <div>Select an index to explore</div>
+    </div>
+
+    <div id="index-view" style="display:none; display:flex; flex-direction:column; gap:16px;">
+      <div class="row">
+        <h2 id="view-title" style="font-size:18px; font-weight:600; letter-spacing:-.3px;"></h2>
+        <span class="tag green" id="view-doc-count"></span>
+      </div>
+
+      <div class="tabs" id="tabs">
+        <div class="tab active" data-tab="stats">Stats</div>
+        <div class="tab" data-tab="schema">Schema</div>
+        <div class="tab" data-tab="docs">Documents</div>
+        <div class="tab" data-tab="logs" id="tab-logs" style="display:none">Logs</div>
+      </div>
+
+      <!-- STATS TAB -->
+      <div id="tab-stats" class="tab-content">
+        <div class="stat-grid" id="stat-grid"></div>
+        <div class="card" id="shards-card" style="margin-top:4px;">
+          <div class="card-header"><span class="card-title">Shards</span></div>
+          <div class="card-body" id="shards-body"></div>
+        </div>
+      </div>
+
+      <!-- SCHEMA TAB -->
+      <div id="tab-schema" class="tab-content" style="display:none">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Field mappings</span></div>
+          <div class="card-body" style="padding:0;">
+            <table class="map-table" id="schema-table">
+              <thead><tr><th>Field</th><th>Type</th><th>Sub-fields</th></tr></thead>
+              <tbody id="schema-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- DOCS TAB -->
+      <div id="tab-docs" class="tab-content" style="display:none">
+        <div class="docs-toolbar">
+          <input type="text" id="search-query" placeholder="Search (leave empty for all docs)…">
+          <select id="size-select">
+            <option value="5">5 rows</option>
+            <option value="10" selected>10 rows</option>
+            <option value="25">25 rows</option>
+            <option value="50">50 rows</option>
+          </select>
+          <button onclick="fetchDocs(0)">Search</button>
+          <button class="secondary" onclick="document.getElementById('search-query').value=''; fetchDocs(0);">Clear</button>
+        </div>
+        <div id="docs-results"></div>
+        <div class="pagination" id="docs-pagination" style="display:none">
+          <button class="page-btn" id="btn-prev" onclick="changePage(-1)">← Prev</button>
+          <span id="page-info"></span>
+          <button class="page-btn" id="btn-next" onclick="changePage(1)">Next →</button>
+        </div>
+      </div>
+
+      <!-- LOGS TAB (llm-proxy-logs) -->
+      <div id="tab-logs-content" class="tab-content" style="display:none">
+        <div class="docs-toolbar">
+          <input type="text" id="log-query" placeholder="Filter by model, path, or any text…">
+          <select id="log-size">
+            <option value="10" selected>10 logs</option>
+            <option value="25">25 logs</option>
+            <option value="50">50 logs</option>
+          </select>
+          <button onclick="fetchLogs(0)">Filter</button>
+          <button class="secondary" onclick="document.getElementById('log-query').value=''; fetchLogs(0);">Clear</button>
+        </div>
+        <div id="logs-results"></div>
+        <div class="pagination" id="logs-pagination" style="display:none">
+          <button class="page-btn" id="btn-log-prev" onclick="changeLogPage(-1)">← Prev</button>
+          <span id="log-page-info"></span>
+          <button class="page-btn" id="btn-log-next" onclick="changeLogPage(1)">Next →</button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+let HOST = 'http://localhost:9200';
+let currentIndex = null;
+let currentTab = 'stats';
+let docsFrom = 0;
+let logsFrom = 0;
+
+// ── Host management ───────────────────────────────────────────────────────────
+document.getElementById('btn-edit-host').addEventListener('click', () => {
+  const inp = document.getElementById('host-input');
+  const disp = document.getElementById('host-display');
+  const btn = document.getElementById('btn-edit-host');
+  if (inp.style.display === 'block') {
+    HOST = inp.value.trim().replace(/\/$/, '');
+    disp.textContent = HOST.replace(/^https?:\/\//, '');
+    inp.style.display = 'none';
+    disp.style.display = '';
+    btn.textContent = 'Edit host';
+    loadIndices();
+  } else {
+    inp.style.display = 'block';
+    disp.style.display = 'none';
+    btn.textContent = 'Save';
+    inp.focus();
+  }
+});
+
+// ── API helpers ───────────────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const url = HOST + path;
+  const r = await fetch(url, {
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    ...opts,
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
+async function esGet(path) { return api(path); }
+async function esPost(path, body) {
+  return api(path, { method: 'POST', body: JSON.stringify(body) });
+}
+
+// ── INDICES ───────────────────────────────────────────────────────────────────
+async function loadIndices() {
+  document.getElementById('sidebar-loading').style.display = 'block';
+  document.getElementById('index-list').innerHTML = '';
+  setConnDot(null);
+  try {
+    const data = await esGet('/_cat/indices?v=true&s=index&format=json');
+    setConnDot(true);
+    document.getElementById('sidebar-loading').style.display = 'none';
+    const list = document.getElementById('index-list');
+    if (!data.length) {
+      list.innerHTML = '<div class="sidebar-loading">No indices</div>';
+      return;
+    }
+    data.forEach(idx => {
+      const el = document.createElement('div');
+      el.className = 'idx-item';
+      el.dataset.name = idx.index;
+      const dotClass = idx.health === 'green' ? 'dot-g' : idx.health === 'yellow' ? 'dot-y' : 'dot-r';
+      el.innerHTML = `<span class="idx-dot ${dotClass}"></span>${idx.index}`;
+      el.title = `docs: ${(idx['docs.count']||0).toLocaleString()}  size: ${idx['store.size']||'?'}`;
+      el.addEventListener('click', () => selectIndex(idx.index, idx));
+      list.appendChild(el);
+    });
+  } catch (e) {
+    setConnDot(false);
+    document.getElementById('sidebar-loading').style.display = 'none';
+    document.getElementById('index-list').innerHTML =
+      `<div class="sidebar-loading" style="color:var(--red)">Cannot connect</div>`;
+  }
+}
+
+function setConnDot(ok) {
+  const d = document.getElementById('conn-dot');
+  if (ok === true)  { d.style.background = 'var(--green)'; d.style.animation = 'pulse 2.5s ease-in-out infinite'; }
+  if (ok === false) { d.style.background = 'var(--red)'; d.style.animation = 'none'; }
+  if (ok === null)  { d.style.background = 'var(--yellow)'; }
+}
+
+// ── INDEX SELECTION ───────────────────────────────────────────────────────────
+async function selectIndex(name, meta) {
+  currentIndex = name;
+  docsFrom = 0;
+  logsFrom = 0;
+
+  document.querySelectorAll('.idx-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.name === name);
+  });
+
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('index-view').style.display = 'flex';
+  document.getElementById('view-title').textContent = name;
+  document.getElementById('view-doc-count').textContent =
+    `${parseInt(meta?.['docs.count'] || 0).toLocaleString()} docs`;
+
+  // Show/hide logs tab
+  document.getElementById('tab-logs').style.display =
+    name === 'llm-proxy-logs' ? '' : 'none';
+
+  setActiveTab(currentTab === 'logs' && name !== 'llm-proxy-logs' ? 'stats' : currentTab);
+  loadTabData(currentTab);
+}
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    setActiveTab(t.dataset.tab);
+    loadTabData(t.dataset.tab);
+  });
+});
+
+function setActiveTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+  const mapping = {
+    stats: 'tab-stats',
+    schema: 'tab-schema',
+    docs: 'tab-docs',
+    logs: 'tab-logs-content',
+  };
+  if (mapping[tab]) document.getElementById(mapping[tab]).style.display = 'flex' === tab ? 'flex' : 'block';
+}
+
+function loadTabData(tab) {
+  if (!currentIndex) return;
+  if (tab === 'stats')  loadStats();
+  if (tab === 'schema') loadSchema();
+  if (tab === 'docs')   fetchDocs(0);
+  if (tab === 'logs')   fetchLogs(0);
+}
+
+// ── STATS ─────────────────────────────────────────────────────────────────────
+async function loadStats() {
+  const grid = document.getElementById('stat-grid');
+  const shardsBody = document.getElementById('shards-body');
+  grid.innerHTML = '<div class="loading-spinner">Loading…</div>';
+  try {
+    const [statsData, shardsData] = await Promise.all([
+      esGet(`/${currentIndex}/_stats`),
+      esGet(`/_cat/shards/${currentIndex}?format=json`),
+    ]);
+    const total = statsData?._all?.total || {};
+    const docs = total.docs || {};
+    const store = total.store || {};
+
+    const stats = [
+      { label: 'Documents', val: parseInt(docs.count || 0).toLocaleString(), sub: '' },
+      { label: 'Deleted', val: parseInt(docs.deleted || 0).toLocaleString(), sub: '' },
+      { label: 'Store size', val: fmtBytes(store.size_in_bytes || 0), sub: `${(store.size_in_bytes||0).toLocaleString()} bytes` },
+      { label: 'Index ops', val: parseInt(total.indexing?.index_total || 0).toLocaleString(), sub: 'total indexed' },
+      { label: 'Search ops', val: parseInt(total.search?.query_total || 0).toLocaleString(), sub: 'total queries' },
+      { label: 'Get ops', val: parseInt(total.get?.total || 0).toLocaleString(), sub: '' },
+    ];
+
+    grid.innerHTML = stats.map(s => `
+      <div class="stat">
+        <div class="stat-label">${s.label}</div>
+        <div class="stat-val">${s.val}</div>
+        ${s.sub ? `<div class="stat-sub">${s.sub}</div>` : ''}
+      </div>`).join('');
+
+    // Shards
+    if (shardsData?.length) {
+      shardsBody.innerHTML = `
+        <table class="map-table">
+          <thead><tr><th>#</th><th>Role</th><th>State</th><th>Docs</th><th>Size</th><th>Node</th></tr></thead>
+          <tbody>${shardsData.map(s => {
+            const sc = s.state === 'STARTED' ? 'var(--green)' : 'var(--yellow)';
+            return `<tr>
+              <td>${s.shard}</td>
+              <td><span class="tag">${s.prirep === 'p' ? 'primary' : 'replica'}</span></td>
+              <td><span style="color:${sc}">${s.state}</span></td>
+              <td>${s.docs || '0'}</td>
+              <td>${s.store || '?'}</td>
+              <td style="font-family:var(--mono);font-size:12px;color:var(--text2)">${s.node || '?'}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>`;
+    } else {
+      shardsBody.innerHTML = '<div class="empty">No shard data</div>';
+    }
+  } catch (e) {
+    grid.innerHTML = `<div class="err">${e.message}</div>`;
+  }
+}
+
+function fmtBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1024*1024*1024) return (b/1024/1024).toFixed(1) + ' MB';
+  return (b/1024/1024/1024).toFixed(2) + ' GB';
+}
+
+// ── SCHEMA ────────────────────────────────────────────────────────────────────
+async function loadSchema() {
+  const tbody = document.getElementById('schema-body');
+  tbody.innerHTML = '<tr><td colspan="3"><div class="loading-spinner">Loading…</div></td></tr>';
+  try {
+    const data = await esGet(`/${currentIndex}/_mapping`);
+    const props = data[currentIndex]?.mappings?.properties || {};
+    const rows = [];
+    flattenProps(props, rows, 0);
+    tbody.innerHTML = rows.map(r => {
+      const pad = r.depth > 0 ? `indent-${r.depth}` : '';
+      const typeCls = typeClass(r.type);
+      return `<tr>
+        <td class="field-name ${pad}">${'└ '.repeat(r.depth)}${r.name}</td>
+        <td><span class="type-badge ${typeCls}">${r.type}</span></td>
+        <td style="font-size:11px;color:var(--text2)">${r.subFields || ''}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="3" class="empty">No properties</td></tr>';
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="3"><div class="err">${e.message}</div></td></tr>`;
+  }
+}
+
+function flattenProps(props, rows, depth, prefix='') {
+  for (const [name, meta] of Object.entries(props).sort()) {
+    const type = meta.type || 'object';
+    const sub = meta.properties ? Object.keys(meta.properties) : [];
+    const fields = meta.fields ? Object.keys(meta.fields).join(', ') : '';
+    rows.push({ name, type, depth, subFields: fields });
+    if (meta.properties) flattenProps(meta.properties, rows, depth + 1, prefix + name + '.');
+  }
+}
+
+function typeClass(t) {
+  if (['keyword'].includes(t)) return 'type-kw';
+  if (['text', 'match_only_text'].includes(t)) return 'type-text';
+  if (['date'].includes(t)) return 'type-date';
+  if (['long','integer','short','byte','float','double','half_float','scaled_float','unsigned_long'].includes(t)) return 'type-num';
+  if (['object','nested','flattened'].includes(t)) return 'type-obj';
+  if (['boolean'].includes(t)) return 'type-bool';
+  return 'type-def';
+}
+
+// ── DOCUMENTS ────────────────────────────────────────────────────────────────
+async function fetchDocs(from) {
+  docsFrom = from;
+  const container = document.getElementById('docs-results');
+  const q = document.getElementById('search-query').value.trim();
+  const size = parseInt(document.getElementById('size-select').value);
+  container.innerHTML = '<div class="loading-spinner">Loading…</div>';
+
+  const body = {
+    from,
+    size,
+    query: q
+      ? { multi_match: { query: q, fields: ['*'], type: 'best_fields' } }
+      : { match_all: {} },
+    sort: ['_score', { '_id': { order: 'asc' } }],
+  };
+
+  try {
+    const data = await esPost(`/${currentIndex}/_search`, body);
+    const hits = data.hits?.hits || [];
+    const total = data.hits?.total?.value || 0;
+    renderDocs(hits, total, size, from, container);
+  } catch (e) {
+    container.innerHTML = `<div class="err">${e.message}</div>`;
+  }
+}
+
+function renderDocs(hits, total, size, from, container) {
+  if (!hits.length) {
+    container.innerHTML = '<div class="empty">No documents found</div>';
+    document.getElementById('docs-pagination').style.display = 'none';
+    return;
+  }
+  container.innerHTML = hits.map((h, i) => {
+    const src = h._source || {};
+    const fields = Object.entries(src).map(([k, v]) => {
+      const isObj = typeof v === 'object' && v !== null;
+      const valHtml = isObj
+        ? `<span class="hit-val json-block">${JSON.stringify(v, null, 2)}</span>`
+        : `<span class="hit-val">${String(v).slice(0, 400)}</span>`;
+      return `<div class="hit-key">${k}</div>${valHtml}`;
+    }).join('');
+    return `
+      <div class="hit">
+        <div class="hit-header" onclick="toggleHit(this)">
+          <span class="hit-id">${h._id}</span>
+          <span class="hit-score">score: ${(h._score || 0).toFixed(3)}</span>
+          <span class="hit-toggle">▼</span>
+        </div>
+        <div class="hit-body">
+          <div class="hit-fields">${fields}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // auto-open first hit
+  const firstBody = container.querySelector('.hit-body');
+  if (firstBody) { firstBody.classList.add('open'); container.querySelector('.hit-toggle').textContent = '▲'; }
+
+  // pagination
+  const pag = document.getElementById('docs-pagination');
+  const info = document.getElementById('page-info');
+  const prevBtn = document.getElementById('btn-prev');
+  const nextBtn = document.getElementById('btn-next');
+  const page = Math.floor(from / size) + 1;
+  const totalPages = Math.ceil(total / size);
+  info.textContent = `Page ${page} of ${totalPages}  (${total.toLocaleString()} total)`;
+  prevBtn.disabled = from === 0;
+  nextBtn.disabled = from + size >= total;
+  pag.style.display = totalPages > 1 ? 'flex' : 'none';
+}
+
+function toggleHit(header) {
+  const body = header.nextElementSibling;
+  const tog = header.querySelector('.hit-toggle');
+  body.classList.toggle('open');
+  tog.textContent = body.classList.contains('open') ? '▲' : '▼';
+}
+
+function changePage(dir) {
+  const size = parseInt(document.getElementById('size-select').value);
+  fetchDocs(Math.max(0, docsFrom + dir * size));
+}
+
+// ── LLM PROXY LOGS ────────────────────────────────────────────────────────────
+async function fetchLogs(from) {
+  logsFrom = from;
+  const container = document.getElementById('logs-results');
+  const q = document.getElementById('log-query').value.trim();
+  const size = parseInt(document.getElementById('log-size').value);
+  container.innerHTML = '<div class="loading-spinner">Loading…</div>';
+
+  const body = {
+    from,
+    size,
+    sort: [{ timestamp: { order: 'desc' } }],
+    query: q
+      ? { multi_match: { query: q, fields: ['*'], type: 'best_fields' } }
+      : { match_all: {} },
+  };
+
+  try {
+    const data = await esPost('/llm-proxy-logs/_search', body);
+    const hits = data.hits?.hits || [];
+    const total = data.hits?.total?.value || 0;
+    renderLogs(hits, total, size, from, container);
+  } catch (e) {
+    container.innerHTML = `<div class="err">${e.message}</div>`;
+  }
+}
+
+function renderLogs(hits, total, size, from, container) {
+  if (!hits.length) {
+    container.innerHTML = '<div class="empty">No log entries found</div>';
+    document.getElementById('logs-pagination').style.display = 'none';
+    return;
+  }
+
+  container.innerHTML = hits.map((h) => {
+    const s = h._source || {};
+    const ts = s.timestamp ? s.timestamp.replace('T', ' ').replace('Z', '') : '?';
+    const code = s.status_code || '?';
+    const codeCls = String(code).startsWith('2') ? 's-2xx' : String(code).startsWith('4') ? 's-4xx' : 's-5xx';
+    const req = s.request_body || {};
+    const resp = s.response_body || {};
+    const model = req.model || '';
+    const usage = resp.usage || {};
+    const msgs = req.messages || [];
+    const lastMsg = msgs.length ? (msgs[msgs.length-1]?.content || '').slice(0, 80) : '';
+    const choices = resp.choices || [];
+    const respText = choices.length ? (choices[0]?.message?.content || '').slice(0, 80) : '';
+
+    return `
+      <div class="log-row">
+        <div class="log-header" onclick="toggleLog(this)">
+          <span class="log-ts">${ts}</span>
+          <span class="log-method">${s.method || '?'}</span>
+          <span class="log-path">${s.path || '?'}</span>
+          <span class="status-badge ${codeCls}">${code}</span>
+          <span class="log-model">${model}</span>
+        </div>
+        <div class="log-detail">
+          <div>
+            <div class="log-meta">
+              <div class="log-meta-item">request_id: <span>${(s.request_id||'?').slice(0,8)}…</span></div>
+              ${usage.prompt_tokens ? `<div class="log-meta-item">prompt tokens: <span>${usage.prompt_tokens}</span></div>` : ''}
+              ${usage.completion_tokens ? `<div class="log-meta-item">completion tokens: <span>${usage.completion_tokens}</span></div>` : ''}
+              ${msgs.length ? `<div class="log-meta-item">messages: <span>${msgs.length}</span></div>` : ''}
+            </div>
+            ${lastMsg ? `<div class="log-meta-item" style="margin-bottom:8px">last msg: <span title="${escHtml(lastMsg)}">${escHtml(lastMsg)}…</span></div>` : ''}
+            ${respText ? `<div class="log-meta-item">response: <span title="${escHtml(respText)}">${escHtml(respText)}…</span></div>` : ''}
+          </div>
+          <div class="detail-section">
+            <h4>Request body</h4>
+            <pre>${escHtml(JSON.stringify(req, null, 2))}</pre>
+          </div>
+          <div class="detail-section">
+            <h4>Response body</h4>
+            <pre>${escHtml(JSON.stringify(resp, null, 2))}</pre>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  const pag = document.getElementById('logs-pagination');
+  const info = document.getElementById('log-page-info');
+  const page = Math.floor(from / size) + 1;
+  const totalPages = Math.ceil(total / size);
+  info.textContent = `Page ${page} of ${totalPages}  (${total.toLocaleString()} total)`;
+  document.getElementById('btn-log-prev').disabled = from === 0;
+  document.getElementById('btn-log-next').disabled = from + size >= total;
+  pag.style.display = totalPages > 1 ? 'flex' : 'none';
+}
+
+function toggleLog(header) {
+  const detail = header.nextElementSibling;
+  detail.classList.toggle('open');
+}
+
+function changeLogPage(dir) {
+  const size = parseInt(document.getElementById('log-size').value);
+  fetchLogs(Math.max(0, logsFrom + dir * size));
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+// Fix tab-content initial display
+document.getElementById('tab-stats').style.display = 'block';
+
+loadIndices();
+</script>
+</body>
+</html>

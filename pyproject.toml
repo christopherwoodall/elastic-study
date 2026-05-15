@@ -1,0 +1,55 @@
+[build-system]
+requires = [
+    "setuptools>=68",
+    "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-proxy"
+version = "0.1.0"
+description = "Transparent HTTP proxy for OpenAI-compatible LLM APIs with Elasticsearch logging"
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+
+dependencies = [
+    "fastapi==0.136.1",
+    "uvicorn[standard]==0.46.0",
+    "httpx==0.28.1",
+    "elasticsearch[async]==9.0.0",
+    "python-dotenv==1.2.2",
+    "httpx==0.28.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.0.3",
+    "pytest-asyncio==1.3.0",
+    "respx==0.23.1",
+    "black==26.3.1",
+    "tomlkit==0.12.5",
+]
+
+[project.scripts]
+# Console scripts mapped to CLI commands when the package is installed
+start-proxy = "proxy.proxy:start"
+# Helpful utilities for development and debugging
+docker-helper = "proxy.helpers.docker_helper:main"
+update-deps = "proxy.helpers.update_deps:main"
+es-cli = "proxy.helpers.es_cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+target-version = ['py313']
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = [
+    "tests"
+]

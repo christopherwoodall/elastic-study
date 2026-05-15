@@ -1,0 +1,28 @@
+// https://opencode.ai/docs/config/
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "bash": {
+      "*": "allow",
+      "rm -rf *": "deny",
+      "sudo *": "ask"
+    }
+  },
+  "provider": {
+    "openrouter-audit": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Audit Proxy (OpenRouter)",
+      "options": {
+        "apiKey": "{env:OPENROUTER_API_KEY}",
+        "baseURL": "http://localhost:8000/v1",
+        "headers": {
+           "HTTP-Referer": "http://localhost:8000",
+           "X-Title": "OpenCode Audit Proxy"
+        }
+      },
+      "models": {
+        "moonshotai/kimi-k2.5": { "name": "Kimi k2.5 (Proxied)" }
+      }
+    }
+  }
+}
