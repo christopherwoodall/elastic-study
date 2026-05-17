@@ -15,18 +15,21 @@
 #   docker build -t agent-zoo .
 #
 # RUN (programmatic — CMD is fully overridden):
-#   docker run --rm \
-#     -v $(pwd):/workspace \
-#     -e ANTHROPIC_API_KEY="sk-ant-..." \
-#     agent-zoo \
-#     claude -p "Refactor the auth module" --dangerously-skip-permissions
+#    echo "Waiting for Elasticsearch to be healthy..."
+#    until [ "$(docker inspect -f '{{.State.Health.Status}}' elasticsearch)" == "healthy" ]; do
+#        sleep 2
+#    done
 #
-# NON-ROOT USER (recommended for volume mounts):
-#   docker run --rm -it \
-#     --user $(id -u):$(id -g) \
-#     -v $(pwd):/workspace \
-#     -e ANTHROPIC_API_KEY="sk-ant-..." \
-#     agent-zoo
+#    docker run --rm -it \
+#      --user $(id -u):$(id -g) \
+#      --network agent_sandbox_net \
+#      --add-host=host.docker.internal:host-gateway \
+#      --env-file .env \
+#      -v $(pwd)/workspace:/workspace \
+#      -v $(pwd)/opencode.jsonc:/workspace/opencode.jsonc \
+#      -v $(pwd)/configs/filebeat.yml:/etc/filebeat/filebeat.yml:ro \
+#      agent-zoo \
+#      bash -c "service rsyslog start && service filebeat start && opencode run --dir /workspace --model openrouter-audit/moonshotai/kimi-k2.5 'Create a simple game called game.py where the player has to guess a number between 1 and 10. The game should provide feedback on whether the guess is too high, too low, or correct.'"
 # =============================================================================
 
 FROM ubuntu:24.04
@@ -69,6 +72,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     gdb \
     strace \
+    rsyslog \
     && rm -rf /var/lib/apt/lists/*
 
 # -----------------------------------------------------------------------------
@@ -120,7 +124,15 @@ RUN pip3 install --break-system-packages aider-chat \
     && rm -rf /root/.cache/pip
 
 # -----------------------------------------------------------------------------
-# 6. HELP DOCUMENTATION
+# 6. LOG FORWARDING (Filebeat)
+# -----------------------------------------------------------------------------
+# Download from https://www.elastic.co/downloads/beats/filebeat
+RUN curl -L -O https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-9.4.1-amd64.deb && \
+    dpkg -i filebeat-9.4.1-amd64.deb && \
+    rm filebeat-9.4.1-amd64.deb
+
+# -----------------------------------------------------------------------------
+# 7. HELP DOCUMENTATION
 # -----------------------------------------------------------------------------
 RUN cat > /etc/agent-help.txt << 'EOF'
 =============================================================================
@@ -155,7 +167,7 @@ RUN cat > /etc/agent-help.txt << 'EOF'
 EOF
 
 # -----------------------------------------------------------------------------
-# 7. WORKSPACE & DEFAULT COMMAND
+# 8. WORKSPACE & DEFAULT COMMAND
 # -----------------------------------------------------------------------------
 WORKDIR /workspace
 

@@ -22,38 +22,29 @@ services:
       - xpack.security.http.ssl.enabled=false
       # Cap JVM memory to keep your machine running smoothly
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
-      # - http.cors.enabled=true
-      # - http.cors.allow-origin=*
-      # - http.cors.allow-headers=X-Requested-With,Content-Type,Accept,Origin,Authorization
-      # - http.cors.allow-methods=OPTIONS,HEAD,GET,POST,PUT,DELETE
-    ports:
-      - "9200:9200"
     volumes:
       - es_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
     networks:
       - elastic_network
-    # # Checks if ES is actually ready to accept connections
-    # healthcheck:
-    #   test: ["CMD-SHELL", "curl -sf http://localhost:9200 || exit 1"]
-    #   interval: 10s
-    #   timeout: 5s
-    #   retries: 5
+    # Checks if ES is actually ready to accept connections
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 
   kibana:
     image: *kb_img
     container_name: kibana
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
     restart: unless-stopped
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-      # # Disable monitoring
-      # - xpack.reporting.enabled=false
-      # - xpack.monitoring.enabled=false
-      # - xpack.monitoring.collection.enabled=false
-      # # Disable telemetry
-      # - telemetry.enabled=false
-      # - telemetry.optIn=false
     ports:
       - "5601:5601"
     networks:
@@ -62,20 +53,19 @@ services:
 # logstash:
 #     image: *ls_img
 #     container_name: logstash
-#     restart: unless-stopped
-#     # Caps Logstash memory so it doesn't fight ES for RAM
-#     environment:
-#       - LS_JAVA_OPTS=-Xms512m -Xmx512m
-#     ports:
-#       - "5044:5044"
-#     volumes:
-#       - ./logstash_config/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
-#     networks:
-#       - elastic_network
 #     depends_on:
 #       elasticsearch:
 #         condition: service_healthy
-
+#     restart: unless-stopped
+#     environment:
+#       # Caps Logstash memory so it doesn't fight ES for RAM
+#       - LS_JAVA_OPTS=-Xms512m -Xmx512m
+#     volumes:
+#       - ./logstash_config/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+#     ports:
+#       - "5044:5044"
+#     networks:
+#       - elastic_network
 
 volumes:
   es_data:
@@ -84,4 +74,5 @@ volumes:
 
 networks:
   elastic_network:
+    name: agent_sandbox_net # Custom network name for better isolation and debugging
     driver: bridge
