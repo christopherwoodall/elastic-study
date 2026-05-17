@@ -1,5 +1,6 @@
 import importlib
 import pkgutil
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 _current_dir = str(Path(__file__).parent)
@@ -30,3 +31,18 @@ def __dir__():
     and Jupyter Notebooks for autocompletion.
     """
     return sorted(list(globals().keys()) + __all__)
+
+
+def _establish_identity(package_name: str) -> str:
+    """Retrieves version or exits if the package isn't installed."""
+    try:
+        return version(package_name)
+    except PackageNotFoundError as e:
+        raise ImportError(
+            f"Fatal: '{package_name}' is not installed correctly. "
+            f"Please ensure it was installed via pip or uv."
+        ) from e
+
+
+__title__ = "Agent Proxy"
+__version__ = _establish_identity("agent_proxy")

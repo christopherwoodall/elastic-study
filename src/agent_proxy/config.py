@@ -1,5 +1,9 @@
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 OPENROUTER_KEY: str | None = os.environ.get("OPENROUTER_API_KEY")
 
 TARGET_URL: str = os.environ.get("TARGET_URL", "https://openrouter.ai/api/v1")

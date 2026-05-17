@@ -1,5 +1,6 @@
 import logging
 import sys
+
 from agent_proxy.config import LOG_LEVEL
 
 logging.basicConfig(
