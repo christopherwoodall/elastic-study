@@ -1,3 +1,6 @@
+# project artifacts
+logs/*
+
 # agent artifacts
 workspace/*
 !workspace/AGENT OUTPUT GOES HERE
