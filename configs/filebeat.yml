@@ -1,0 +1,15 @@
+filebeat.inputs:
+- type: filestream
+  id: sandbox-logs
+  enabled: true
+  paths:
+    - /var/log/*.log
+    # - /var/log/syslog
+    # - /var/log/auth.log
+    # - /var/log/kern.log
+
+output.elasticsearch:
+  # This points to the Elasticsearch container alias on the Docker network
+  hosts: ["http://elasticsearch:9200"]
+  # Optional: index: "agent-zoo-logs-%{+yyyy.MM.dd}"
+  # Optional: If you enable security later, add username/password here

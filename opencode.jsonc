@@ -14,9 +14,9 @@
       "name": "Audit Proxy (OpenRouter)",
       "options": {
         "apiKey": "{env:OPENROUTER_API_KEY}",
-        "baseURL": "http://localhost:8000/v1",
+        "baseURL": "http://localhost:8000/v1",  // Change this to "http://host.docker.internal:8000/v1" if running the agent inside a Docker container
         "headers": {
-           "HTTP-Referer": "http://localhost:8000",
+           "HTTP-Referer": "http://localhost:8000",  // Change this to "http://host.docker.internal:8000" if running the agent inside a Docker container
            "X-Title": "OpenCode Audit Proxy"
         }
       },
