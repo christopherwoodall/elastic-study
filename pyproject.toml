@@ -46,7 +46,7 @@ dev = [
 # =============================================================
 [project.scripts]
 # Console scripts mapped to CLI commands when the package is installed
-start-proxy = "agent_proxy.proxy:start"
+start-proxy = "agent_proxy.main:start"
 # Helpful utilities for development and debugging
 docker-helper = "agent_proxy.helpers.docker_helper:main"
 update-deps = "agent_proxy.helpers.update_deps:main"
