@@ -111,6 +111,10 @@ async def _handle_standard(
     """Handles standard JSON responses and STRICT_MODE logging."""
     await upstream_response.aread()  # Read full body into memory
 
+    # # TODO: Inject DLP
+    # restored_text = dlp_service.deanonymize(request_id, response_text)
+    # restored_bytes = restored_text.encode("utf-8")
+
     doc_template["status_code"] = upstream_response.status_code
     doc_template["response_body"] = parse_body(upstream_response.content)
 
@@ -149,6 +153,13 @@ async def proxy_route(path: str, request: Request) -> Response:
     timestamp = datetime.now(UTC).isoformat()
     body_bytes: bytes = await request.body()
     request_body = parse_body(body_bytes)
+
+    # # TODO: DLP injection
+    # if isinstance(request_body, dict):
+    #     # Overwrite body_bytes with the redacted version
+    #     body_bytes = dlp_service.anonymize(request_id, request_body)
+    #     # (Optional) update request_body so Elasticsearch logs the redacted version
+    #     request_body = parse_body(body_bytes)
 
     # 2. Prepare Upstream Request
     forward_url, clean_path = _build_forward_url(path, request.url.query)
