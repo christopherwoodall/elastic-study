@@ -73,6 +73,7 @@ All settings are environment variables. No config files needed.
 
 | Variable | Default | Description |
 |---|---|---|
+| `ENVIRONMENT` | `development` | Tag injected into Elasticsearch logs to separate environments. |
 | `TARGET_URL` | `http://localhost:11434` | Upstream LLM base URL (no trailing slash) |
 | `ELASTIC_URL` | `http://localhost:9200` | Elasticsearch node URL |
 | `ELASTIC_API_KEY` | *(unset)* | `id:api_key` string for ES auth. Omit for unauthenticated. |
@@ -103,6 +104,13 @@ Your Agent
 └─────────────┘
 ```
 
+### Features
+* **Transparent Proxying:** Forwards standard and streaming requests to OpenAI, OpenRouter, or Ollama.
+* **True Streaming Support:** Uses asynchronous generators to stream Server-Sent Events (SSE) back to the client token-by-token with zero buffering delay.
+* **Rich Observability:** Automatically intercepts, parses, and enriches LLM requests with metadata like execution duration (`duration_ms`), network origins (`client_ip`), and environment tags.
+* **Prompt Extraction:** Extracts the `latest_user_prompt` from complex conversation histories to enable clean, readable analytics in Kibana.
+* **Strict Mode:** Optional mode to block upstream responses if Elasticsearch logging fails, ensuring 100% audit compliance.
+
 ---
 
 ## Elasticsearch Schema
@@ -111,13 +119,19 @@ Each document written to the index has the following shape:
 
 ```json
 {
-  "request_id":    "550e8400-e29b-41d4-a716-446655440000",
-  "timestamp":     "2025-01-15T12:34:56.789Z",
-  "method":        "POST",
-  "path":          "/v1/chat/completions",
-  "status_code":   200,
-  "request_body":  { "model": "gpt-4o", "messages": [...] },
-  "response_body": { "id": "chatcmpl-...", "choices": [...] }
+  "request_id":         "550e8400-e29b-41d4-a716-446655440000",
+  "timestamp":          "2025-01-15T12:34:56.789Z",
+  "method":             "POST",
+  "path":               "/v1/chat/completions",
+  "hostname":           "proxy-worker-01",
+  "environment":        "production",
+  "client_ip":          "192.168.1.50",
+  "user_agent":         "MyAgent/1.0",
+  "duration_ms":        1245.32,
+  "latest_user_prompt": "Can you generate a python script?",
+  "status_code":        200,
+  "request_body":       { "model": "gpt-4o", "messages": [...] },
+  "response_body":      { "id": "chatcmpl-...", "choices": [...] }
 }
 ```
 
@@ -130,13 +144,21 @@ PUT /llm-proxy-logs
 {
   "mappings": {
     "properties": {
-      "request_id":    { "type": "keyword" },
-      "timestamp":     { "type": "date" },
-      "method":        { "type": "keyword" },
-      "path":          { "type": "keyword" },
-      "status_code":   { "type": "short" },
-      "request_body":  { "type": "object", "dynamic": true },
-      "response_body": { "type": "object", "dynamic": true }
+      "request_id":         { "type": "keyword" },
+      "timestamp":          { "type": "date" },
+      "method":             { "type": "keyword" },
+      "path":               { "type": "keyword" },
+      "status_code":        { "type": "short" },
+
+      "hostname":           { "type": "keyword" },
+      "environment":        { "type": "keyword" },
+      "client_ip":          { "type": "ip" },
+      "user_agent":         { "type": "keyword" },
+      "duration_ms":        { "type": "float" },
+      "latest_user_prompt": { "type": "text" },
+
+      "request_body":       { "type": "object", "dynamic": true },
+      "response_body":      { "type": "object", "dynamic": true }
     }
   }
 }
