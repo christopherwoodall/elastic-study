@@ -293,7 +293,7 @@ async def shutdown() -> None:
 
 def start() -> None:
     uvicorn.run(
-        "proxy.proxy:app",
+        "agent_proxy.proxy:app",
         host=PROXY_HOST,
         port=PROXY_PORT,
         log_level=LOG_LEVEL.lower(),
