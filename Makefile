@@ -53,7 +53,7 @@ build: ## Build the application
 clean: ## Clean artifacts
 -	rm -rf $(BUILD_DIR) dist *.egg-info
 -	rm -rf $(RUN_DIR) dist *.egg-info
-
+- printf 'def main():\n    ...\n\n\nif __name__ == "__main__":\n    main()\n' > ./workspace/game.py
 
 .PHONY: lint
 lint: ## Lint the code
