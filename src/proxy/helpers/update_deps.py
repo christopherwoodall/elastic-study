@@ -5,8 +5,9 @@
 # ///
 
 import sys
-from pathlib import Path
 import tomllib
+from pathlib import Path
+
 import tomlkit
 
 
@@ -95,7 +96,7 @@ def run_pinning(root_path: Path):
     }
 
     # 2. Load pyproject.toml using tomlkit
-    with open(pyproject_path, "r", encoding="utf-8") as f:
+    with open(pyproject_path, encoding="utf-8") as f:
         data = tomlkit.load(f)
 
     project = data.get("project", {})
@@ -109,7 +110,7 @@ def run_pinning(root_path: Path):
     # Update Optional Dependencies in-place
     if "optional-dependencies" in project:
         optional = project["optional-dependencies"]
-        for group in optional.keys():
+        for group in optional:
             pin_dependencies_inplace(
                 optional[group], locked_versions, f"optional-dependencies.{group}"
             )

@@ -11,7 +11,7 @@ import logging
 import os
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import uvicorn
@@ -172,7 +172,7 @@ def _try_parse_json(raw: bytes) -> dict | list | None:
 )
 async def proxy(path: str, request: Request) -> Response:
     request_id = str(uuid.uuid4())
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(UTC).isoformat()
 
     # --- Read request body ---
     body_bytes: bytes = await request.body()

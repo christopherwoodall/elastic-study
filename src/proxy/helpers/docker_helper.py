@@ -4,9 +4,9 @@ docker-helper — docker-compose helper (services discovered dynamically)
 Usage: docker_helper [command] [service]
 """
 
+import shutil
 import subprocess
 import sys
-import shutil
 
 COMPOSE_FILE = "docker-compose.yaml"
 

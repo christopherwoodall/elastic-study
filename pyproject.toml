@@ -1,3 +1,6 @@
+# =============================================================
+# BUILD & PACKAGING
+# =============================================================
 [build-system]
 requires = [
     "setuptools>=68",
@@ -5,6 +8,9 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
+# =============================================================
+# PROJECT METADATA
+# =============================================================
 [project]
 name = "llm-proxy"
 version = "0.1.0"
@@ -22,15 +28,22 @@ dependencies = [
     "httpx==0.28.1",
 ]
 
+# =============================================================
+# DEVELOPMENT & ENVIRONMENTS
+# =============================================================
 [project.optional-dependencies]
 dev = [
     "pytest==9.0.3",
     "pytest-asyncio==1.3.0",
     "respx==0.23.1",
-    "black==26.3.1",
+    "ruff==0.15.12",
     "tomlkit==0.12.5",
+    "hatch==1.16.5"
 ]
 
+# =============================================================
+# ENTRY POINTS
+# =============================================================
 [project.scripts]
 # Console scripts mapped to CLI commands when the package is installed
 start-proxy = "proxy.proxy:start"
@@ -39,17 +52,46 @@ docker-helper = "proxy.helpers.docker_helper:main"
 update-deps = "proxy.helpers.update_deps:main"
 es-cli = "proxy.helpers.es_cli:main"
 
+# =============================================================
+# SETUPTOOLS CONFIGURATION
+# =============================================================
 [tool.setuptools]
 package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.black]
-target-version = ['py313']
-
+# =============================================================
+# PYTEST CONFIGURATION
+# =============================================================
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = [
     "tests"
 ]
+
+# =============================================================
+# LINTING & FORMATTING (RUFF)
+# =============================================================
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort (imports)
+    "UP",   # pyupgrade (modern python syntax)
+    "B",    # flake8-bugbear (prevents common bugs)
+    "SIM",  # flake8-simplify
+]
+ignore = [
+   "E501", # line-length violations
+   "W293", # blank line contains whitespace
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

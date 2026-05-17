@@ -33,7 +33,6 @@ import argparse
 import json
 import sys
 import textwrap
-from datetime import datetime
 from typing import Any
 
 try:
@@ -182,7 +181,7 @@ def cmd_stats(host: str, index: str, **_):
             color = G if state == "STARTED" else Y
             print(
                 f"    [{s.get('shard')}] {color}{state:<12}{RESET} "
-                f"node={s.get('node','?')}  docs={s.get('docs','?')}"
+                f"node={s.get('node', '?')}  docs={s.get('docs', '?')}"
             )
     print()
 
