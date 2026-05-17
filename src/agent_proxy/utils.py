@@ -1,6 +1,27 @@
 import json
 
 
+def strip_hop_by_hop(headers: dict) -> dict:
+    hop_by_hop = {
+        "connection",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailers",
+        "transfer-encoding",
+        "upgrade",
+        "content-length",
+        "host",
+    }
+    return {k: v for k, v in headers.items() if k.lower() not in hop_by_hop}
+
+
+async def aiter_bytes(data: bytes):
+    """Wrap a bytes blob as an async generator for StreamingResponse."""
+    yield data
+
+
 def try_parse_json(raw: bytes) -> dict | list | None:
     if not raw:
         return None
@@ -84,24 +105,3 @@ def parse_body(raw: bytes) -> dict | list | str | None:
 
     # 3. Ultimate Fallback
     return text
-
-
-def strip_hop_by_hop(headers: dict) -> dict:
-    hop_by_hop = {
-        "connection",
-        "keep-alive",
-        "proxy-authenticate",
-        "proxy-authorization",
-        "te",
-        "trailers",
-        "transfer-encoding",
-        "upgrade",
-        "content-length",
-        "host",
-    }
-    return {k: v for k, v in headers.items() if k.lower() not in hop_by_hop}
-
-
-async def aiter_bytes(data: bytes):
-    """Wrap a bytes blob as an async generator for StreamingResponse."""
-    yield data
