@@ -84,6 +84,8 @@ async def _handle_streaming(
     async def stream_and_log():
         accumulated_bytes = bytearray()
 
+        # TODO: Inject DLP is option is enabled
+
         # Yield chunks to the client immediately
         async for chunk in upstream_response.aiter_bytes():
             accumulated_bytes.extend(chunk)
