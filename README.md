@@ -23,7 +23,7 @@ Copy or create a `.env` file with your credentials:
 ```env
 OPENROUTER_API_KEY=your_key_here
 TARGET_URL=https://openrouter.ai/api/v1   # default; change to http://localhost:11434 for Ollama
-ELASTIC_URL=http://localhost:9200          # default
+ELASTIC_URL=http://localhost:9200         # default
 ```
 
 **Step 3.** Start Elasticsearch + Kibana
