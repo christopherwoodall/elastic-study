@@ -22,6 +22,7 @@
 #
 #    docker run --rm -it \
 #      --user $(id -u):$(id -g) \
+#      --hostname opencode-agent-001 \
 #      --network agent_sandbox_net \
 #      --add-host=host.docker.internal:host-gateway \
 #      --env-file .env \
