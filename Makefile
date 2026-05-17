@@ -55,6 +55,7 @@ clean: ## Clean artifacts
 -	rm -rf $(RUN_DIR) dist *.egg-info
 -   rm -rf ./workspace
 -   mkdir -p ./workspace
+-   touch "./workspace/AGENT OUTPUT GOES HERE"
 - printf 'def main():\n    ...\n\n\nif __name__ == "__main__":\n    main()\n' > ./workspace/game.py
 
 .PHONY: lint
