@@ -53,12 +53,11 @@ Expected: `200`
 The `openrouter-audit` provider (defined in `opencode.jsonc`) routes through the proxy at `localhost:8000` instead of calling OpenRouter directly — this is what triggers logging to Elasticsearch.
 
 ```bash
-uv run opencode \
-  run \
-  --env-file .env \
-  --dir ./workspace \
-  --model openrouter-audit/moonshotai/kimi-k2.5 \
-  "Create a simple game called game.py where the player has to guess a number between 1 and 10. The game should provide feedback on whether the guess is too high, too low, or correct."
+uv run --env-file .env \
+  opencode run \
+    --dir ./workspace \
+    --model openrouter-audit/moonshotai/kimi-k2.5 \
+    "Create a simple game called game.py where the player has to guess a number between 1 and 10. The game should provide feedback on whether the guess is too high, too low, or correct."
 ```
 
 **Step 6.** View logs
