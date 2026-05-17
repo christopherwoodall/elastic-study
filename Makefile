@@ -61,6 +61,12 @@ lint: ## Lint the code
 -	ruff format $(SRC_DIR)
 
 
+.PHONY: run
+run: ## Run the proxy server
+-	docker compose up -d --force-recreate
+-   uv run start-proxy
+
+
 .PHONY: tree
 tree: ## Display project structure
 -	tree -I 'dist|build|*.egg-info|__pycache__' $(SRC_DIR)
