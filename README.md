@@ -34,7 +34,7 @@ docker compose up -d --force-recreate
 **Step 4.** Start the proxy
 
 ```bash
-uv run start-proxy
+uv run --env-file .env start-proxy
 ```
 
 Proxy listens on `http://localhost:8000`. Verify with:
@@ -54,6 +54,7 @@ The `openrouter-audit` provider (defined in `opencode.jsonc`) routes through the
 ```bash
 uv run opencode \
   run \
+  --env-file .env \
   --dir ./workspace \
   --model openrouter-audit/moonshotai/kimi-k2.5 \
   "Create a simple game called game.py where the player has to guess a number between 1 and 10. The game should provide feedback on whether the guess is too high, too low, or correct."
