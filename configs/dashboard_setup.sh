@@ -59,11 +59,11 @@ curl -X POST "http://kibana:5601/api/data_views/data_view" \
   }
 }'
 
-# 5. Import Saved Dashboard
-# If you have an exported dashboard file (export.ndjson), uncomment below:
-# curl -X POST "http://kibana:5601/api/saved_objects/_import?overwrite=true" \
-#  -H "kbn-xsrf: true" \
-#  --form file=@/setup/dashboard.ndjson
+5. Import Saved Dashboard
+If you have an exported dashboard file (export.ndjson), uncomment below:
+curl -X POST "http://kibana:5601/api/saved_objects/_import?overwrite=true" \
+ -H "kbn-xsrf: true" \
+ --form file=@/setup/dashboard.ndjson
 
 # 6. Define a policy: Keep logs for 30 days, then delete
 # echo "Creating Lifecycle Policy..."

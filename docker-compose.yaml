@@ -70,7 +70,7 @@ services:
   #     - kibana
   #   volumes:
   #     - ./configs/dashboard_setup.sh:/setup/setup.sh:ro
-  #     # - ./dashboard.ndjson:/setup/dashboard.ndjson:ro
+  #     - ./configs/dashboard.ndjson:/setup/dashboard.ndjson:ro
   #   entrypoint: ["/bin/bash", "/setup/setup.sh"]
   #   networks:
   #     - elastic_network
