@@ -147,6 +147,7 @@ Each document written to the index has the following shape:
 
 ```json
 PUT /llm-proxy-logs
+PUT /_index_template/llm_proxy_template
 {
   "index_patterns": ["llm-proxy-logs*"],
   "template": {
@@ -163,15 +164,15 @@ PUT /llm-proxy-logs
         "user_agent":         { "type": "keyword" },
         "duration_ms":        { "type": "float" },
         "latest_user_prompt": { "type": "text" },
+        "last_message":       { "type": "text" },
         "request_body":       { "type": "object", "dynamic": true },
         "response_body":      { "type": "object", "dynamic": true },
-        "last_message":       { "type": "text" },
         "usage": {
-        "properties": {
+          "properties": {
             "prompt_tokens":     { "type": "integer" },
             "completion_tokens": { "type": "integer" },
             "total_tokens":      { "type": "integer" }
-        }
+          }
         }
       }
     }
