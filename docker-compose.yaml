@@ -1,5 +1,8 @@
 # compose.yaml
 
+# =============================================================
+# DOCKER COMPOSE CONFIGURATION
+# =============================================================
 x-custom-variables:
   # Update version to match client in pyproject.toml
   # fallback to 9.0.0 if not set
@@ -9,6 +12,9 @@ x-custom-variables:
 
 
 services:
+  # =============================================================
+  # ELASTICSEARCH
+  # =============================================================
   elasticsearch:
     image: *es_img
     # Same thing as:
@@ -35,7 +41,9 @@ services:
       timeout: 5s
       retries: 5
 
-
+  # =============================================================
+  # KIBANA
+  # =============================================================
   kibana:
     image: *kb_img
     container_name: kibana
@@ -50,27 +58,51 @@ services:
     networks:
       - elastic_network
 
-# logstash:
-#     image: *ls_img
-#     container_name: logstash
-#     depends_on:
-#       elasticsearch:
-#         condition: service_healthy
-#     restart: unless-stopped
-#     environment:
-#       # Caps Logstash memory so it doesn't fight ES for RAM
-#       - LS_JAVA_OPTS=-Xms512m -Xmx512m
-#     volumes:
-#       - ./logstash_config/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
-#     ports:
-#       - "5044:5044"
-#     networks:
-#       - elastic_network
 
+  # # =============================================================
+  # # SETUP SERVICE
+  # # =============================================================
+  # setup-automation:
+  #   image: *es_img # Use the ES image because it already has curl installed
+  #   container_name: setup_automation
+  #   depends_on:
+  #     - elasticsearch
+  #     - kibana
+  #   volumes:
+  #     - ./configs/dashboard_setup.sh:/setup/setup.sh:ro
+  #     # - ./dashboard.ndjson:/setup/dashboard.ndjson:ro
+  #   entrypoint: ["/bin/bash", "/setup/setup.sh"]
+  #   networks:
+  #     - elastic_network
+
+
+  # # =============================================================
+  # # LOGSTASH SERVICE (OPTIONAL)
+  # # =============================================================
+  # logstash:
+  #     image: *ls_img
+  #     container_name: logstash
+  #     depends_on:
+  #       elasticsearch:
+  #         condition: service_healthy
+  #     restart: unless-stopped
+  #     environment:
+  #       # Caps Logstash memory so it doesn't fight ES for RAM
+  #       - LS_JAVA_OPTS=-Xms512m -Xmx512m
+  #     volumes:
+  #       - ./logstash_config/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+  #     ports:
+  #       - "5044:5044"
+  #     networks:
+  #       - elastic_network
+
+
+# =============================================================
+# VOLUMES & NETWORKS
+# =============================================================
 volumes:
   es_data:
     driver: local
-
 
 networks:
   elastic_network:
