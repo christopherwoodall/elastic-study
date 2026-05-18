@@ -147,7 +147,6 @@ Each document written to the index has the following shape:
 
 ```json
 PUT /llm-proxy-logs
-PUT /_index_template/llm_proxy_template
 {
   "index_patterns": ["llm-proxy-logs*"],
   "template": {
