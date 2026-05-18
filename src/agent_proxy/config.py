@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+ENVIRONMENT: str = os.environ.get("ENVIRONMENT", "development").lower()
+
 OPENROUTER_KEY: str | None = os.environ.get("OPENROUTER_API_KEY")
 
 TARGET_URL: str = os.environ.get("TARGET_URL", "https://openrouter.ai/api/v1")

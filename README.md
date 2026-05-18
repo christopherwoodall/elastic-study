@@ -120,7 +120,7 @@ Each document written to the index has the following shape:
 ```json
 {
   "request_id":         "550e8400-e29b-41d4-a716-446655440000",
-  "timestamp":          "2025-01-15T12:34:56.789Z",
+  "timestamp":          "2026-05-17T12:34:56.789Z",
   "method":             "POST",
   "path":               "/v1/chat/completions",
   "hostname":           "proxy-worker-01",
@@ -128,9 +128,15 @@ Each document written to the index has the following shape:
   "client_ip":          "192.168.1.50",
   "user_agent":         "MyAgent/1.0",
   "duration_ms":        1245.32,
-  "latest_user_prompt": "Can you generate a python script?",
+  "latest_user_prompt": "Create a simple game called game.py...",
+  "last_message":       "TOOL: <path>/workspace/game.py</path> <content>...",
   "status_code":        200,
-  "request_body":       { "model": "gpt-4o", "messages": [...] },
+  "usage": {
+    "prompt_tokens":     1540,
+    "completion_tokens": 432,
+    "total_tokens":      1972
+  },
+  "request_body":       { "model": "kimi-k2.5", "messages": [...] },
   "response_body":      { "id": "chatcmpl-...", "choices": [...] }
 }
 ```
@@ -142,23 +148,32 @@ Each document written to the index has the following shape:
 ```json
 PUT /llm-proxy-logs
 {
-  "mappings": {
-    "properties": {
-      "request_id":         { "type": "keyword" },
-      "timestamp":          { "type": "date" },
-      "method":             { "type": "keyword" },
-      "path":               { "type": "keyword" },
-      "status_code":        { "type": "short" },
-
-      "hostname":           { "type": "keyword" },
-      "environment":        { "type": "keyword" },
-      "client_ip":          { "type": "ip" },
-      "user_agent":         { "type": "keyword" },
-      "duration_ms":        { "type": "float" },
-      "latest_user_prompt": { "type": "text" },
-
-      "request_body":       { "type": "object", "dynamic": true },
-      "response_body":      { "type": "object", "dynamic": true }
+  "index_patterns": ["llm-proxy-logs*"],
+  "template": {
+    "mappings": {
+      "properties": {
+        "request_id":         { "type": "keyword" },
+        "timestamp":          { "type": "date" },
+        "method":             { "type": "keyword" },
+        "path":               { "type": "keyword" },
+        "status_code":        { "type": "short" },
+        "hostname":           { "type": "keyword" },
+        "environment":        { "type": "keyword" },
+        "client_ip":          { "type": "ip" },
+        "user_agent":         { "type": "keyword" },
+        "duration_ms":        { "type": "float" },
+        "latest_user_prompt": { "type": "text" },
+        "request_body":       { "type": "object", "dynamic": true },
+        "response_body":      { "type": "object", "dynamic": true },
+        "last_message":       { "type": "text" },
+        "usage": {
+        "properties": {
+            "prompt_tokens":     { "type": "integer" },
+            "completion_tokens": { "type": "integer" },
+            "total_tokens":      { "type": "integer" }
+        }
+        }
+      }
     }
   }
 }
