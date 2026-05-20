@@ -63,6 +63,9 @@ dev = [
 # Console scripts mapped to CLI commands when the package is installed
 start-proxy = "agent_proxy.main:start"
 
+# Agent management
+agent-hydrate = "agent_proxy.helpers.hydrate_agent:main"
+
 # RAG Utilities
 rag-ask = "agent_rag.main:ask"
 rag-hydrate = "agent_rag.main:hydrate"

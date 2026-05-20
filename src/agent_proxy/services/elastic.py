@@ -1,8 +1,17 @@
 import asyncio
+import json
+import os
+from datetime import UTC, datetime
 
 from elasticsearch import AsyncElasticsearch
 
-from agent_proxy.config import ELASTIC_API_KEY, ELASTIC_INDEX, ELASTIC_URL, STRICT_MODE
+from agent_proxy.config import (
+    AGENT_LOG_DIR,
+    ELASTIC_API_KEY,
+    ELASTIC_INDEX,
+    ELASTIC_URL,
+    STRICT_MODE,
+)
 from agent_proxy.logger import logger
 
 
@@ -10,9 +19,9 @@ class ElasticService:
     """
     An asynchronous service for managing Elasticsearch connections and logging.
 
-    This service handles creating the connection to the Elasticsearch cluster
-    and provides methods for both synchronous (fire-and-forget) and asynchronous
-    document indexing.
+    This service handles creating the connection to the Elasticsearch cluster,
+    maintains a dual local-file disk buffer, and provides methods for both
+    synchronous (fire-and-forget) and asynchronous document indexing.
     """
 
     def __init__(self):
@@ -23,6 +32,7 @@ class ElasticService:
         to allow for safe integration within asynchronous event loops.
         """
         self.client: AsyncElasticsearch | None = None
+        self.file_handle = None
 
     def connect(self) -> None:
         """
@@ -31,10 +41,23 @@ class ElasticService:
         Uses the `ELASTIC_URL` and `ELASTIC_API_KEY` loaded from the application
         configuration. This should be called during the application startup phase.
         """
+        # 1. Establish Elastic Target Connection
         kwargs = {"hosts": [ELASTIC_URL]}
         if ELASTIC_API_KEY:
             kwargs["api_key"] = ELASTIC_API_KEY
         self.client = AsyncElasticsearch(**kwargs)
+
+        # 2. Setup Persistent Local File Handle
+        try:
+            os.makedirs(AGENT_LOG_DIR, exist_ok=True)
+            timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+            filepath = os.path.join(AGENT_LOG_DIR, f"proxy_run_{timestamp}.jsonl")
+
+            # Keep file open cleanly for session to achieve peak I/O performance
+            self.file_handle = open(filepath, "a", encoding="utf-8")  # noqa: SIM115
+            logger.info("Local proxy storage sink attached at %s", filepath)
+        except Exception as exc:
+            logger.error("Failed to initialize local file logger sink: %s", exc)
 
     async def close(self) -> None:
         """
@@ -43,6 +66,9 @@ class ElasticService:
         This should be called during the application shutdown phase to ensure
         all underlying network connections are properly terminated.
         """
+        if self.file_handle and not self.file_handle.closed:
+            self.file_handle.close()
+
         if self.client:
             await self.client.close()
 
@@ -58,6 +84,15 @@ class ElasticService:
             Exception: If indexing fails AND the application is running in `STRICT_MODE`.
                 Otherwise, the exception is caught and logged.
         """
+        # Sink Step A: Persistent Local Append
+        if self.file_handle:
+            try:
+                self.file_handle.write(json.dumps(doc) + "\n")
+                self.file_handle.flush()
+            except Exception as exc:
+                logger.error("Failed to append entry to local proxy file: %s", exc)
+
+        # Sink Step B: Elasticsearch Push
         try:
             await self.client.index(
                 index=ELASTIC_INDEX, id=doc["request_id"], document=doc

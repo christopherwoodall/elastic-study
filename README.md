@@ -5,11 +5,22 @@ Intercepts every request/response pair and ships a structured log to Elasticsear
 
 [Demo Video](https://github.com/user-attachments/assets/ba44e17f-3407-4a49-bca0-9138b8de235f)
 
+---
+
+## Extension Modules & Advanced Features
+
+The platform includes isolated, performance-critical extension packages designed for standalone local evaluation and advanced context retrieval. Check the dedicated documentation links below for complete setup, pipeline workflows, and specific index mappings:
+
+* **[LLM Benchmarking Engine (`./docs/BENCHMARKING.md`)](https://www.google.com/search?q=%5Bhttps://www.google.com/search%3Fq%3D./docs/BENCHMARKING.md%5D(https://www.google.com/search%3Fq%3D./docs/BENCHMARKING.md))**: Hardware-native suite utilizing 4-bit quantization via `bitsandbytes` to measure exact latency telemetry, throughput metrics (TPS), and lexical correctness profiles of local 8B+ models (e.g., Nvidia's Nemotron Diffusion) executing directly on a consumer GPU.
+* **[Vector RAG Pipeline (`./docs/RAG.md`)](https://www.google.com/search?q=%5Bhttps://www.google.com/search%3Fq%3D./docs/RAG.md%5D(https://www.google.com/search%3Fq%3D./docs/RAG.md))**: Self-contained retrieval-augmented generation engine integrating an asynchronous kNN vector search against a dense vector mapping space inside Elasticsearch 9.x using a local text embedder (`all-MiniLM-L6-v2`) and an upstream OpenRouter LLM provider (`moonshotai/kimi-k2.5`).
+
+---
+
 ## Getting Started
 
 **Step 1.** Install dependencies
 
-Requires [`uv`](https://github.com/astral-sh/uv). Install with `pip install uv` if needed.
+Requires [`uv`](https://www.google.com/search?q=%5Bhttps://github.com/astral-sh/uv%5D(https://github.com/astral-sh/uv)). Install with `pip install uv` if needed.
 
 ```bash
 uv sync --all-extras
@@ -24,6 +35,7 @@ Copy or create a `.env` file with your credentials:
 OPENROUTER_API_KEY=your_key_here
 TARGET_URL=https://openrouter.ai/api/v1   # default; change to http://localhost:11434 for Ollama
 ELASTIC_URL=http://localhost:9200         # default
+AGENT_LOG_DIR=./logs/agent                # local buffer for proxy logs
 ```
 
 **Step 3.** Start Elasticsearch + Kibana
@@ -50,7 +62,7 @@ Expected: `200`
 
 **Step 5.** Run an OpenCode agent through the proxy
 
-The `openrouter-audit` provider (defined in `opencode.jsonc`) routes through the proxy at `localhost:8000` instead of calling OpenRouter directly — this is what triggers logging to Elasticsearch.
+The `openrouter-audit` provider (defined in `opencode.jsonc`) routes through the proxy at `localhost:8000` instead of calling OpenRouter directly — this is what triggers logging to Elasticsearch and your local `./logs/agent` directory.
 
 ```bash
 uv run --env-file .env \
@@ -62,8 +74,17 @@ uv run --env-file .env \
 
 **Step 6.** View logs
 
-- **Kibana:** http://localhost:5601 → Create a data view for index `llm-proxy-logs`
-- **Elasticsearch direct:** `curl http://localhost:9200/llm-proxy-logs/_search?pretty`
+* **Kibana:** http://localhost:5601 → Create a data view for index `llm-proxy-logs`
+* **Elasticsearch direct:** `curl http://localhost:9200/llm-proxy-logs/_search?pretty`
+* **Local Disk:** `cat ./logs/agent/proxy_run_<timestamp>.jsonl`
+
+**Step 7.** Offline Recovery (Log Rehydration)
+
+If Elasticsearch experiences downtime or network drops, your operational proxy logs are safely buffered to local JSONL files. Once the cluster is back online, you can backfill these missed transactions into your index:
+
+```bash
+uv run --env-file .env agent-hydrate
+```
 
 ---
 
@@ -72,12 +93,13 @@ uv run --env-file .env \
 All settings are environment variables. No config files needed.
 
 | Variable | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `ENVIRONMENT` | `development` | Tag injected into Elasticsearch logs to separate environments. |
 | `TARGET_URL` | `http://localhost:11434` | Upstream LLM base URL (no trailing slash) |
 | `ELASTIC_URL` | `http://localhost:9200` | Elasticsearch node URL |
 | `ELASTIC_API_KEY` | *(unset)* | `id:api_key` string for ES auth. Omit for unauthenticated. |
 | `ELASTIC_INDEX` | `llm-proxy-logs` | Index to write documents into |
+| `AGENT_LOG_DIR` | `./logs/agent` | Target local storage directory for secondary JSONL operational logs. |
 | `STRICT_MODE` | `false` | `true` → return HTTP 500 if ES indexing fails. `false` → log error to stderr and return the LLM response anyway. |
 | `PROXY_HOST` | `0.0.0.0` | Bind address |
 | `PROXY_PORT` | `8000` | Listen port |
@@ -96,20 +118,23 @@ Your Agent
 │  :8000      │ ◄────────────────── │  (Ollama / OpenAI / │
 └─────────────┘                     │   LiteLLM / vLLM)   │
     │                               └─────────────────────┘
-    │  asyncio.create_task (fire-and-forget)
-    ▼
-┌─────────────┐
-│Elasticsearch│
-│  :9200      │
-└─────────────┘
+    ├────────────────────────────────────────┐
+    │ asyncio.create_task (fire-and-forget)  │
+    ▼                                        ▼
+┌─────────────┐                        ┌─────────────┐
+│Elasticsearch│                        │ Local Files │
+│  :9200      │                        │ ./logs/agent│
+└─────────────┘                        └─────────────┘
 ```
 
 ### Features
+
 * **Transparent Proxying:** Forwards standard and streaming requests to OpenAI, OpenRouter, or Ollama.
 * **True Streaming Support:** Uses asynchronous generators to stream Server-Sent Events (SSE) back to the client token-by-token with zero buffering delay.
+* **Dual-Sink Resiliency:** Broadcasts transactions to local JSONL rotated structures and distant Elasticsearch clusters simultaneously.
 * **Rich Observability:** Automatically intercepts, parses, and enriches LLM requests with metadata like execution duration (`duration_ms`), network origins (`client_ip`), and environment tags.
 * **Prompt Extraction:** Extracts the `latest_user_prompt` from complex conversation histories to enable clean, readable analytics in Kibana.
-* **Strict Mode:** Optional mode to block upstream responses if Elasticsearch logging fails, ensuring 100% audit compliance.
+* **Idempotent Rehydration Pipeline:** Built-in `hydrate-agent` utility to process any uningested local transaction backups and flash sync them safely into indices post-outage.
 
 ---
 
@@ -140,8 +165,6 @@ Each document written to the index has the following shape:
   "response_body":      { "id": "chatcmpl-...", "choices": [...] }
 }
 ```
-
-`request_body` and `response_body` are parsed JSON objects when the payload is JSON, otherwise `null`.
 
 ### Recommended Index Mapping
 
@@ -183,6 +206,6 @@ PUT /llm-proxy-logs
 
 ## Notes
 
-- **Streaming / SSE**: responses with `Content-Type: text/event-stream` are passed through as `StreamingResponse`. The response body logged to ES will be the raw SSE bytes interpreted as JSON (likely `null` for chunked streams). For full token-level streaming logs you'd need to accumulate chunks — not implemented here to keep the hot path clean.
-- **Auth passthrough**: the proxy does not inspect or strip `Authorization` headers; they are forwarded as-is to the upstream LLM.
-- **No TLS termination**: run behind nginx/Caddy if you need HTTPS on the proxy side.
+* **Streaming / SSE**: responses with `Content-Type: text/event-stream` are passed through as `StreamingResponse`. The response body logged to ES will be the raw SSE bytes interpreted as JSON (likely `null` for chunked streams). For full token-level streaming logs you'd need to accumulate chunks — not implemented here to keep the hot path clean.
+* **Auth passthrough**: the proxy does not inspect or strip `Authorization` headers; they are forwarded as-is to the upstream LLM.
+* **No TLS termination**: run behind nginx/Caddy if you need HTTPS on the proxy side.
