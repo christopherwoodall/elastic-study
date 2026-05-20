@@ -56,6 +56,7 @@ clean: ## Clean artifacts
 -   rm -rf ./workspace
 -   mkdir -p ./workspace
 -   touch "./workspace/AGENT OUTPUT GOES HERE"
+-	touch ./workspace/organize_files.py
 - printf 'def main():\n    ...\n\n\nif __name__ == "__main__":\n    main()\n' > ./workspace/game.py
 
 .PHONY: lint

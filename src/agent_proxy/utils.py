@@ -22,16 +22,24 @@ async def aiter_bytes(data: bytes):
     yield data
 
 
-def try_parse_json(raw: bytes) -> dict | list | None:
+def try_parse_json(raw: bytes) -> dict | None:
+    """Strictly returns a dict or None. Wraps primitives."""
     if not raw:
         return None
     try:
-        return json.loads(raw)
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            return parsed
+        return {"raw_json_value": parsed}
     except (json.JSONDecodeError, UnicodeDecodeError):
-        return raw.decode("utf-8", errors="replace")
+        return {"raw_text": raw.decode("utf-8", errors="replace")}
 
 
-def parse_body(raw: bytes) -> dict | list | str | None:
+def parse_body(raw: bytes) -> dict | None:
+    """
+    Safely parses byte payloads into dictionaries.
+    Guarantees a dict return type to prevent Elasticsearch mapping conflicts.
+    """
     if not raw:
         return None
 
@@ -39,7 +47,11 @@ def parse_body(raw: bytes) -> dict | list | str | None:
 
     # 1. Try standard JSON first (Non-streaming)
     try:
-        return json.loads(text)
+        parsed = json.loads(text)
+        # Ensure it is actually an object. If the API returned a list or string, wrap it.
+        if isinstance(parsed, dict):
+            return parsed
+        return {"raw_json_value": parsed}
     except json.JSONDecodeError:
         pass
 
@@ -103,5 +115,5 @@ def parse_body(raw: bytes) -> dict | list | str | None:
 
             return reconstructed
 
-    # 3. Ultimate Fallback
-    return text
+    # 3. Ultimate Fallback: Wrap raw text in a dictionary
+    return {"raw_text": text}
