@@ -28,7 +28,7 @@ ELASTIC_INDEX=llm-proxy-logs
 The engine will check your hardware, download the specified model into VRAM, fetch real-world prompts (and expected answers) from the Hugging Face Alpaca dataset, and begin the benchmark loop.
 
 ```bash
-uv run --env-file .env run-benchmark
+uv run --env-file .env benchmark-run
 ```
 
 **Step 4.** View local logs or hydrate Elasticsearch
@@ -38,7 +38,7 @@ By default, logs are written immediately to `./logs/benchmarks/run_<timestamp>.j
 If Elasticsearch was unreachable during your run, or you ran the benchmark offline, you can hydrate the database using the local files:
 
 ```bash
-uv run --env-file .env hydrate-benchmarks
+uv run --env-file .env benchmark-hydrate
 ```
 
 ---

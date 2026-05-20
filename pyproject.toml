@@ -32,6 +32,11 @@ dependencies = [
 # OPTIONAL DEPENDENCIES
 # =============================================================
 [project.optional-dependencies]
+# RAG
+rag = [
+    "sentence-transformers==5.5.0",
+]
+
 # Local Benchmarking
 benchmark = [
     "torch==2.12.0",
@@ -58,9 +63,14 @@ dev = [
 # Console scripts mapped to CLI commands when the package is installed
 start-proxy = "agent_proxy.main:start"
 
+# RAG Utilities
+rag-ask = "agent_rag.main:ask"
+rag-hydrate = "agent_rag.main:hydrate"
+rag-hydrate-logs = "agent_rag.main:hydrate_logs"
+
 # Benchmarking
-run-benchmark = "llm_benchmark.main:start"
-hydrate-benchmarks = "llm_benchmark.main:hydrate"
+benchmark-run = "llm_benchmark.main:start"
+benchmark-hydrate = "llm_benchmark.main:hydrate"
 
 # Helpful utilities for development and debugging
 docker-helper = "agent_proxy.helpers.docker_helper:main"
