@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pulse Elasticsearch Topology & Sizing Sandbox</title>
+    <style>
+        :root {
+            --bg-main: #0f172a;
+            --bg-card: #1e293b;
+            --bg-input: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --border: #334155;
+            --code-bg: #0f172a;
+
+            /* Node Type Badges */
+            --color-data: #ef4444;
+            --color-master: #3b82f6;
+            --color-ingest: #10b981;
+            --color-coord: #f59e0b;
+            --color-ml: #ec4899;
+            --color-kibana: #8b5cf6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            line-height: 1.5;
+            padding: 2rem 1rem;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            flex: 1;
+            width: 100%;
+        }
+
+        header {
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .logo-area h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+        .logo-area h1 span {
+            color: var(--accent);
+        }
+        .logo-area p {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+
+        .presets {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-preset {
+            background-color: var(--bg-card);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-preset:hover {
+            border-color: var(--accent);
+            background-color: #253347;
+        }
+
+        .btn-preset.active {
+            background-color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        @media (min-width: 1000px) {
+            .grid-layout {
+                grid-template-columns: 400px 1fr;
+            }
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1.25rem;
+            color: var(--text-main);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.4rem;
+            color: var(--text-muted);
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        input, select {
+            width: 100%;
+            background-color: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 0.625rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--accent);
+        }
+
+        .unit {
+            position: absolute;
+            right: 0.75rem;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            pointer-events: none;
+        }
+
+        /* Outputs System */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .metric-card {
+            background: #1e293b;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            padding: 1.25rem;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background-color: var(--accent);
+        }
+
+        .metric-card.highlight::before {
+            background-color: var(--success);
+        }
+
+        .metric-label {
+            font-size: 0.8125rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 0.25rem;
+        }
+
+        .metric-sub {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            min-height: 2.2em;
+        }
+
+        .metric-formula {
+            font-family: monospace;
+            font-size: 0.75rem;
+            background-color: var(--code-bg);
+            padding: 0.375rem;
+            border-radius: 0.25rem;
+            color: var(--text-muted);
+            margin-top: auto;
+            border: 1px solid #2d3748;
+            word-break: break-all;
+        }
+
+        .live-param {
+            color: #f43f5e;
+            font-weight: bold;
+        }
+
+        .section-header {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 1.5rem 0 1rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Topology Nodes Grid */
+        .topology-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.25rem;
+        }
+
+        .role-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            padding: 1.25rem;
+            position: relative;
+        }
+
+        .role-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        .role-title {
+            font-weight: 600;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .role-badge {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .badge-count {
+            background: var(--bg-input);
+            padding: 0.25rem 0.625rem;
+            border-radius: 1rem;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .spec-line {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.875rem;
+            padding: 0.375rem 0;
+            border-bottom: 1px solid #283548;
+        }
+        .spec-line:last-child {
+            border-bottom: none;
+        }
+
+        .spec-label {
+            color: var(--text-muted);
+        }
+
+        .spec-val {
+            font-family: monospace;
+            font-weight: 600;
+        }
+
+        .disabled-role {
+            opacity: 0.4;
+            filter: grayscale(0.8);
+        }
+
+        /* Checklist styles */
+        .checklist-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: #131f35;
+            border-radius: 0.375rem;
+            margin-bottom: 0.5rem;
+            border-left: 4px solid var(--success);
+        }
+
+        .checklist-item.warning {
+            border-left-color: var(--warning);
+            background: #2a2015;
+        }
+
+        footer {
+            background-color: #0b0f19;
+            border-top: 1px solid var(--border);
+            padding: 2rem 1rem;
+            text-align: center;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-top: auto;
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="logo-area">
+            <h1>Pulse <span>Elasticsearch</span> Cluster Topology Engine</h1>
+            <p>Advanced discrete node role profiler and system hardware capacity sandbox</p>
+        </div>
+        <div class="presets">
+            <span style="font-size:0.875rem; color:var(--text-muted); align-self:center; margin-right:0.5rem;">Topology Targets:</span>
+            <button class="btn-preset active" onclick="applyPreset('logging', this)">Enterprise Logging</button>
+            <button class="btn-preset" onclick="applyPreset('search', this)">Dedicated App Search</button>
+            <button class="btn-preset" onclick="applyPreset('analytics', this)">Heavy Analytics & ML</button>
+        </div>
+    </header>
+
+    <div class="grid-layout">
+        <!-- LEFT: PARAMETERS AND INTENT CONTROLS -->
+        <div>
+            <div class="card">
+                <div class="card-title">Core Ingest & Storage</div>
+
+                <div class="form-group">
+                    <label for="daily_data">Daily Raw Ingest Volume</label>
+                    <div class="input-wrapper">
+                        <input type="number" id="daily_data" value="150" min="1" oninput="calculate()">
+                        <span class="unit">GB/day</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="retention">Retention Window</label>
+                    <div class="input-wrapper">
+                        <input type="number" id="retention" value="30" min="1" oninput="calculate()">
+                        <span class="unit">Days</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="replicas">Replica Level</label>
+                    <select id="replicas" onchange="calculate()">
+                        <option value="0">0 (No Redundancy)</option>
+                        <option value="1" selected>1 Replica Copy</option>
+                        <option value="2">2 Replica Copies</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="target_shard_size">Target Size per Shard</label>
+                    <div class="input-wrapper">
+                        <input type="number" id="target_shard_size" value="40" min="10" max="50" oninput="calculate()">
+                        <span class="unit">GB</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Enriched Compute Roles</div>
+
+                <div class="form-group">
+                    <label for="ingest_pipeline">Ingest Pipeline Processing</label>
+                    <select id="ingest_pipeline" onchange="calculate()">
+                        <option value="light">Light (Simple fields / No transformations)</option>
+                        <option value="complex" selected>Complex Pipelines (Grok, Scripting, Enrichment)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="search_concurrency">Search / Query Latency Bias</label>
+                    <select id="search_concurrency" onchange="calculate()">
+                        <option value="standard">Standard Internal Query Load</option>
+                        <option value="heavy">High Concurrency Client Traffic / Aggs</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="ml_tier">Machine Learning / Outlier Jobs</label>
+                    <select id="ml_tier" onchange="calculate()">
+                        <option value="no">Disabled (No ML Workloads)</option>
+                        <option value="yes" selected>Enabled (Anomaly Detection / Inference)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="kibana_users">Concurrent UI / Kibana Users</label>
+                    <div class="input-wrapper">
+                        <input type="number" id="kibana_users" value="15" min="0" oninput="calculate()">
+                        <span class="unit">Users</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Base Node Target Hardware</div>
+                <div class="form-group">
+                    <label for="storage_per_node">Usable Disk Space / Node</label>
+                    <div class="input-wrapper">
+                        <input type="number" id="storage_per_node" value="1000" min="100" oninput="calculate()">
+                        <span class="unit">GB</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="ram_per_node">Physical System RAM / Node</label>
+                    <div class="input-wrapper">
+                        <input type="number" id="ram_per_node" value="64" min="8" oninput="calculate()">
+                        <span class="unit">GB</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: TOPOLOGY MAP AND PROOF WINDOWS -->
+        <div>
+            <div class="metrics-grid">
+                <div class="metric-card highlight">
+                    <div>
+                        <div class="metric-label">Total Cluster Footprint</div>
+                        <div class="metric-value" id="out_total_nodes">0</div>
+                        <div class="metric-sub" id="out_topology_summary">0 Nodes Active</div>
+                    </div>
+                    <div class="metric-formula" id="formula_total_nodes">
+                        Data + Master + Ingest + Coord + ML
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div>
+                        <div class="metric-label">Core Storage Capacity</div>
+                        <div class="metric-value" id="out_total_storage">0.0 TB</div>
+                        <div class="metric-sub">Net primary and replica byte blocks</div>
+                    </div>
+                    <div class="metric-formula" id="formula_storage">
+                        daily × retention × (1 + replicas) × 1.15
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div>
+                        <div class="metric-label">Index Sharding Array</div>
+                        <div class="metric-value" id="out_total_shards">0</div>
+                        <div class="metric-sub" id="out_primary_shards">0 Primary Shards</div>
+                    </div>
+                    <div class="metric-formula" id="formula_shards">
+                        primary_shards × (1 + replicas)
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="section-header">Target Discrete Architecture Blueprint</h3>
+
+            <div class="topology-grid">
+                <!-- 1. DATA NODES -->
+                <div class="role-card" id="card_data">
+                    <div class="role-header">
+                        <span class="role-title"><span class="role-badge" style="background:var(--color-data);"></span>Data Nodes</span>
+                        <span class="badge-count" id="count_data">0</span>
+                    </div>
+                    <div class="spec-line"><span class="spec-label">RAM Config / Node</span><span class="spec-val" id="spec_data_ram">0 GB</span></div>
+                    <div class="spec-line"><span class="spec-label">JVM Heap Alloc</span><span class="spec-val" id="spec_data_heap">0 GB</span></div>
+                    <div class="spec-line"><span class="spec-label">OS Page Cache</span><span class="spec-val" id="spec_data_cache">0 GB</span></div>
+                    <div class="spec-line"><span class="spec-label">Net Disk / Node</span><span class="spec-val" id="spec_data_disk">0 GB</span></div>
+                    <div class="spec-line"><span class="spec-label">Shard Density</span><span class="spec-val" id="spec_data_density">0 max</span></div>
+                </div>
+
+                <!-- 2. MASTER NODES -->
+                <div class="role-card" id="card_master">
+                    <div class="role-header">
+                        <span class="role-title"><span class="role-badge" style="background:var(--color-master);"></span>Master Nodes</span>
+                        <span class="badge-count" id="count_master">3</span>
+                    </div>
+                    <div class="spec-line"><span class="spec-label">JVM Heap Alloc</span><span class="spec-val" id="spec_master_heap">4 GB</span></div>
+                    <div class="spec-line"><span class="spec-label">Compute Profile</span><span class="spec-val" id="spec_master_cpu">2 Cores</span></div>
+                    <div class="spec-line"><span class="spec-label">Storage Profile</span><span class="spec-val">Metadata Only</span></div>
+                    <div class="spec-line"><span class="spec-label">Quorum Sizing</span><span class="spec-val" style="color:var(--success);">Active Consensus</span></div>
+                </div>
+
+                <!-- 3. INGEST NODES -->
+                <div class="role-card" id="card_ingest">
+                    <div class="role-header">
+                        <span class="role-title"><span class="role-badge" style="background:var(--color-ingest);"></span>Ingest Nodes</span>
+                        <span class="badge-count" id="count_ingest">0</span>
+                    </div>
+                    <div class="spec-line"><span class="spec-label">Pipeline Load</span><span class="spec-val" id="spec_ingest_load">None</span></div>
+                    <div class="spec-line"><span class="spec-label">Recommended RAM</span><span class="spec-val" id="spec_ingest_ram">16 GB</span></div>
+                    <div class="spec-line"><span class="spec-label">JVM Heap Alloc</span><span class="spec-val" id="spec_ingest_heap">8 GB</span></div>
+                    <div class="spec-line"><span class="spec-label">Compute Profile</span><span class="spec-val" id="spec_ingest_cpu">4-8 Cores</span></div>
+                </div>
+
+                <!-- 4. COORDINATOR NODES -->
+                <div class="role-card" id="card_coord">
+                    <div class="role-header">
+                        <span class="role-title"><span class="role-badge" style="background:var(--color-coord);"></span>Coordinator Only</span>
+                        <span class="badge-count" id="count_coord">0</span>
+                    </div>
+                    <div class="spec-line"><span class="spec-label">Search Traffic Load</span><span class="spec-val" id="spec_coord_load">Standard</span></div>
+                    <div class="spec-line"><span class="spec-label">Recommended RAM</span><span class="spec-val" id="spec_coord_ram">16 GB</span></div>
+                    <div class="spec-line"><span class="spec-label">JVM Heap Alloc</span><span class="spec-val" id="spec_coord_heap">8 GB</span></div>
+                    <div class="spec-line"><span class="spec-label">Scatter-Gather Max</span><span class="spec-val">Response Buffering</span></div>
+                </div>
+
+                <!-- 5. MACHINE LEARNING NODES -->
+                <div class="role-card" id="card_ml">
+                    <div class="role-header">
+                        <span class="role-title"><span class="role-badge" style="background:var(--color-ml);"></span>Machine Learning</span>
+                        <span class="badge-count" id="count_ml">0</span>
+                    </div>
+                    <div class="spec-line"><span class="spec-label">Math Job State</span><span class="spec-val" id="spec_ml_state">Disabled</span></div>
+                    <div class="spec-line"><span class="spec-label">Memory Sizing</span><span class="spec-val" id="spec_ml_ram">32 GB RAM</span></div>
+                    <div class="spec-line"><span class="spec-label">Compute Bias</span><span class="spec-val">High CPU/Vector Ratio</span></div>
+                </div>
+
+                <!-- 6. KIBANA APP INSTANCES -->
+                <div class="role-card" id="card_kibana">
+                    <div class="role-header">
+                        <span class="role-title"><span class="role-badge" style="background:var(--color-kibana);"></span>Kibana UI Layer</span>
+                        <span class="badge-count" id="count_kibana">0</span>
+                    </div>
+                    <div class="spec-line"><span class="spec-label">Active Web Concurrency</span><span class="spec-val" id="spec_kibana_users">0 Users</span></div>
+                    <div class="spec-line"><span class="spec-label">Instance Scale</span><span class="spec-val" id="spec_kibana_scale">Standalone</span></div>
+                    <div class="spec-line"><span class="spec-label">Recommended Instance</span><span class="spec-val">4GB RAM, 2 Cores</span></div>
+                </div>
+            </div>
+
+            <h3 class="section-header">Pulse Architecture Watermark Validation</h3>
+            <div id="validation_checklist">
+                <!-- Checklists populate programmatically via sizing telemetry -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer>
+    <p>
+        Topology matrices and discrete role isolation profiles mapped precisely to the
+        <a href="https://pulse.support/kb/elasticsearch-sizing-calculator" target="_blank" rel="noopener">
+            Pulse Elasticsearch Sizing Reference Documentation
+        </a>
+    </p>
+</footer>
+
+<script>
+    const presets = {
+        logging: { target_shard_size: 45, replicas: 1, ram_per_node: 64, pipeline: 'complex', search: 'standard', ml: 'no', users: 10 },
+        search: { target_shard_size: 20, replicas: 2, ram_per_node: 64, pipeline: 'light', search: 'heavy', ml: 'no', users: 25 },
+        analytics: { target_shard_size: 35, replicas: 1, ram_per_node: 128, pipeline: 'complex', search: 'heavy', ml: 'yes', users: 50 }
+    };
+
+    function applyPreset(type, element) {
+        document.querySelectorAll('.btn-preset').forEach(btn => btn.classList.remove('active'));
+        element.classList.add('active');
+
+        const data = presets[type];
+        document.getElementById('target_shard_size').value = data.target_shard_size;
+        document.getElementById('replicas').value = data.replicas;
+        document.getElementById('ram_per_node').value = data.ram_per_node;
+        document.getElementById('ingest_pipeline').value = data.pipeline;
+        document.getElementById('search_concurrency').value = data.search;
+        document.getElementById('ml_tier').value = data.ml;
+        document.getElementById('kibana_users').value = data.users;
+
+        calculate();
+    }
+
+    function calculate() {
+        // Collect raw values
+        const dailyDataGb = parseFloat(document.getElementById('daily_data').value) || 0;
+        const retentionDays = parseInt(document.getElementById('retention').value) || 0;
+        const replicas = parseInt(document.getElementById('replicas').value);
+        const targetShardSizeGb = parseFloat(document.getElementById('target_shard_size').value) || 40;
+        const storagePerNodeGb = parseFloat(document.getElementById('storage_per_node').value) || 1000;
+        const ramPerNodeGb = parseFloat(document.getElementById('ram_per_node').value) || 64;
+
+        const ingestPipeline = document.getElementById('ingest_pipeline').value;
+        const searchConcurrency = document.getElementById('search_concurrency').value;
+        const mlTier = document.getElementById('ml_tier').value;
+        const kibanaUsers = parseInt(document.getElementById('kibana_users').value) || 0;
+
+        const overheadMultiplier = 1.15;
+
+        // 1. Data Node Math
+        const primaryGb = dailyDataGb * retentionDays * overheadMultiplier;
+        const totalStorageGb = primaryGb * (1 + replicas);
+        const primaryShards = Math.max(1, Math.ceil(primaryGb / targetShardSizeGb));
+        const totalShards = primaryShards * (1 + replicas);
+
+        const heapGb = Math.min(ramPerNodeGb * 0.5, 31);
+        const shardCeilingPerNode = heapGb * 20;
+
+        const nodesByStorage = Math.max(1, Math.ceil(totalStorageGb / storagePerNodeGb));
+        const nodesByShards = Math.max(1, Math.ceil(totalShards / shardCeilingPerNode));
+        const dataNodes = Math.max(3, nodesByStorage, nodesByShards);
+
+        // 2. Master Node Math
+        const masterCount = 3;
+        let masterSpecs = "4 GB Heap, 2 Cores";
+        if (dataNodes > 50) masterSpecs = "16 GB Heap, 8 Cores";
+        else if (dataNodes > 20) masterSpecs = "8-16 GB Heap, 4-8 Cores";
+        else if (dataNodes > 5) masterSpecs = "4-8 GB Heap, 4 Cores";
+
+        // 3. Ingest Node Sizing Heuristics
+        let ingestNodes = 0;
+        if (ingestPipeline === 'complex' || dailyDataGb >= 500) {
+            ingestNodes = 2; // Min 2 for High Availability
+        } else if (dailyDataGb >= 200) {
+            ingestNodes = 2;
+        }
+
+        // 4. Coordinator Node Sizing Heuristics
+        let coordNodes = 0;
+        if (searchConcurrency === 'heavy' || dataNodes > 10) {
+            coordNodes = Math.max(2, Math.ceil(dataNodes * 0.10)); // ~10% of data node counts, min 2 for HA
+        }
+
+        // 5. Machine Learning Node Sizing Heuristics
+        let mlNodes = 0;
+        if (mlTier === 'yes') {
+            mlNodes = 2; // Min 2 for workload HA clustering
+        }
+
+        // 6. Kibana Sizing Heuristics
+        let kibanaInstances = 0;
+        let kibanaScale = "Standalone";
+        if (kibanaUsers > 0) {
+            if (kibanaUsers <= 12) {
+                kibanaInstances = 1;
+            } else if (kibanaUsers <= 50) {
+                kibanaInstances = 2;
+                kibanaScale = "2x Load Balanced HA";
+            } else {
+                kibanaInstances = 3;
+                kibanaScale = "3x Load Balanced HA";
+            }
+        }
+
+        // Aggregate Totals
+        const totalClusterNodes = dataNodes + masterCount + ingestNodes + coordNodes + mlNodes;
+
+        // Render Cards Info & Classes
+        updateCardState('card_ingest', ingestNodes);
+        updateCardState('card_coord', coordNodes);
+        updateCardState('card_ml', mlNodes);
+        updateCardState('card_kibana', kibanaInstances);
+
+        // Bind Base Text Numbers
+        document.getElementById('out_total_nodes').innerText = totalClusterNodes + kibanaInstances;
+        document.getElementById('out_topology_summary').innerText = `${totalClusterNodes} Cluster Nodes + ${kibanaInstances} UI Apps`;
+        document.getElementById('out_total_storage').innerText = (totalStorageGb / 1024).toFixed(2) + " TB";
+        document.getElementById('out_total_shards').innerText = totalShards;
+        document.getElementById('out_primary_shards').innerText = primaryShards + " Primary Shards";
+
+        // Bind Dynamic Formula Proof Labels
+        document.getElementById('formula_total_nodes').innerHTML =
+            `(${dataNodes} Data + ${masterCount} Mstr + ${ingestNodes} Ing + ${coordNodes} Crd + ${mlNodes} ML) = <span class="live-param">${totalClusterNodes} ES Nodes</span>`;
+        document.getElementById('formula_storage').innerHTML =
+            `${dailyDataGb} × ${retentionDays} × (1 + ${replicas}) × 1.15 = <span class="live-param">${(totalStorageGb / 1024).toFixed(2)} TB</span>`;
+        document.getElementById('formula_shards').innerHTML =
+            `${primaryShards} Primaries × (1 + ${replicas} Repl) = <span class="live-param">${totalShards} Shards</span>`;
+
+        // Update Discrete Cards Inner Elements
+        const storagePerNodeCalc = Math.round(totalStorageGb / dataNodes);
+        const shardsPerNodeCalc = Math.ceil(totalShards / dataNodes);
+        const cacheGb = Math.max(0, ramPerNodeGb - Math.floor(heapGb));
+
+        // Data Specs
+        document.getElementById('count_data').innerText = dataNodes;
+        document.getElementById('spec_data_ram').innerText = ramPerNodeGb + " GB";
+        document.getElementById('spec_data_heap').innerText = Math.floor(heapGb) + " GB";
+        document.getElementById('spec_data_cache').innerText = cacheGb + " GB";
+        document.getElementById('spec_data_disk').innerText = storagePerNodeCalc + " GB";
+        document.getElementById('spec_data_density').innerText = shardsPerNodeCalc + " / " + Math.floor(shardCeilingPerNode) + " max";
+
+        // Master Specs
+        document.getElementById('count_master').innerText = masterCount;
+        document.getElementById('spec_master_heap').innerText = masterSpecs.split(',')[0];
+        document.getElementById('spec_master_cpu').innerText = masterSpecs.split(',')[1] || "2 Cores";
+
+        // Ingest Specs
+        document.getElementById('count_ingest').innerText = ingestNodes;
+        document.getElementById('spec_ingest_load').innerText = ingestNodes > 0 ? "Dedicated Layer" : "Co-located on Data";
+
+        // Coordinator Specs
+        document.getElementById('count_coord').innerText = coordNodes;
+        document.getElementById('spec_coord_load').innerText = searchConcurrency === 'heavy' ? "High Concurrency Read Bias" : "Standard";
+
+        // ML Specs
+        document.getElementById('count_ml').innerText = mlNodes;
+        document.getElementById('spec_ml_state').innerText = mlNodes > 0 ? "Active Anomaly Models" : "Disabled";
+
+        // Kibana Specs
+        document.getElementById('count_kibana').innerText = kibanaInstances;
+        document.getElementById('spec_kibana_users').innerText = kibanaUsers + " Active Users";
+        document.getElementById('spec_kibana_scale').innerText = kibanaScale;
+
+        renderValidation(shardsPerNodeCalc, shardCeilingPerNode, storagePerNodeCalc, storagePerNodeGb, ingestNodes, coordNodes);
+    }
+
+    function updateCardState(id, count) {
+        const el = document.getElementById(id);
+        if (count === 0) el.classList.add('disabled-role');
+        else el.classList.remove('disabled-role');
+    }
+
+    function renderValidation(shardsPerNode, maxShards, storagePerNode, maxStorage, ingestCount, coordCount) {
+        const list = document.getElementById('validation_checklist');
+        list.innerHTML = '';
+
+        // Validation Rule 1
+        let shardStatus = shardsPerNode <= maxShards;
+        list.appendChild(createChecklistItem(
+            shardStatus ? '✓' : '⚠️',
+            `Shard Densities: Using ${shardsPerNode} shards/node`,
+            `Target cap: max ${Math.floor(maxShards)} based on standard heap constraints. Solves over-sharding states.`,
+            !shardStatus
+        ));
+
+        // Validation Rule 2
+        let storageRatio = (storagePerNode / maxStorage) * 100;
+        let storageStatus = storageRatio <= 85;
+        list.appendChild(createChecklistItem(
+            storageStatus ? '✓' : '⚠️',
+            `Disk Low Watermark Threshold: ${Math.round(storageRatio)}% Disk Allocation`,
+            `Data nodes utilize ${storagePerNode}GB out of available ${maxStorage}GB space. Designing for less than 85% prevents indexing blocks.`,
+            !storageStatus
+        ));
+
+        // Validation Rule 3: Role Separation Architecture Check
+        let separationRecommended = (ingestCount > 0 || coordCount > 0);
+        list.appendChild(createChecklistItem(
+            '✓',
+            separationRecommended ? `Isolated Compute Topologies Active` : `Unified Role Topology`,
+            separationRecommended ?
+                `Dedicated pipelines and routing layers have successfully unburdened the primary storage architecture.` :
+                `Small scale detected. Roles remain blended inside base data nodes safely. Separate roles as cluster volume passes 200GB+/day.`,
+            false
+        ));
+    }
+
+    function createChecklistItem(icon, title, desc, isWarning) {
+        const item = document.createElement('div');
+        item.className = 'checklist-item' + (isWarning ? ' warning' : '');
+        item.innerHTML = `
+            <div class="checklist-icon">${icon}</div>
+            <div class="checklist-text">
+                <h4>${title}</h4>
+                <p>${desc}</p>
+            </div>
+        `;
+        return item;
+    }
+
+    // Run layout computation on load
+    calculate();
+</script>
+</body>
+</html>
