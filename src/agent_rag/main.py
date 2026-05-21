@@ -20,12 +20,17 @@ RAG_KB_INDEX = "knowledge-base-rag"
 RAG_LOG_INDEX = "rag-observability-logs"
 OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY")
 
+# Expanded documents to provide deeper context for Elasticsearch and Vector DB queries
 WIKI_TOPICS = [
     "Elasticsearch",
     "Large language model",
     "Retrieval-augmented generation",
     "Vector database",
     "James Webb Space Telescope",
+    "Inverted index",
+    "Okapi BM25",
+    "Cosine similarity",
+    "K-nearest neighbors algorithm",
 ]
 
 
@@ -215,7 +220,7 @@ async def async_ask(question: str) -> None:
 
 def ask() -> None:
     if len(sys.argv) < 2:
-        print('Usage: uv run ask-rag "Your question here"')
+        print('Usage: uv run rag-ask "Your question here"')
         sys.exit(1)
 
     question = " ".join(sys.argv[1:])
