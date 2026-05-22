@@ -17,7 +17,7 @@ from llm_benchmark.sinks import (
 load_dotenv()
 
 ES_URL = os.environ.get("ELASTIC_URL", "http://localhost:9200")
-BENCHMARK_INDEX = f"{os.environ.get('ELASTIC_INDEX', 'llm-proxy-logs')}-benchmarks"
+BENCHMARK_INDEX = os.environ.get("BENCHMARK_INDEX", "llm-benchmarks")
 TARGET_MODEL = os.environ.get("TARGET_MODEL", "nvidia/Nemotron-Labs-Diffusion-8B")
 LOCAL_LOG_DIR = "./logs/benchmarks"
 

@@ -16,8 +16,8 @@ from agent_rag.vector_store import ElasticVectorStore
 load_dotenv()
 
 ES_URL = os.environ.get("ELASTIC_URL", "http://localhost:9200")
-RAG_KB_INDEX = "knowledge-base-rag"
-RAG_LOG_INDEX = "rag-observability-logs"
+RAG_KB_INDEX = os.environ.get("RAG_KB_INDEX", "rag-knowledge-base")
+RAG_LOG_INDEX = os.environ.get("RAG_LOG_INDEX", "rag-observability-logs")
 OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY")
 
 # Expanded documents to provide deeper context for Elasticsearch and Vector DB queries
