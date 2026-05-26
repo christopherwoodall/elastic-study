@@ -49,6 +49,11 @@ benchmark = [
     "peft==0.19.1",
 ]
 
+# Log Replay
+log_replay = [
+    "xmltodict==1.0.4",
+]
+
 # Development & Testing
 dev = [
     "pytest==9.0.3",
