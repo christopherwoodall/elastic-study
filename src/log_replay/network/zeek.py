@@ -1,85 +1,111 @@
-import gzip
 import json
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
-from log_replay.models import build_network_connection_log
 from log_replay.schemas import DatasetReader
 
 
-class ZeekConnReader(DatasetReader):
-    """Parses Zeek conn.log files (both JSON and standard TSV formats) into ECS."""
+class ZeekLogReader(DatasetReader):
+    """Dynamically parses Zeek logs (conn, http, files, dns, etc.) into ECS."""
+
+    def __init__(self, file_path: Path):
+        super().__init__(file_path)
+        # Extract the type (e.g., "http" from "http.log")
+        self.log_type = self.file_path.stem
 
     async def stream_ecs_documents(self) -> AsyncGenerator[dict[str, Any]]:
-        open_func = gzip.open if self.file_path.suffix == ".gz" else open
-        headers = []
-        is_json = False
-        sniffed = False
-
-        with open_func(self.file_path, "rt", encoding="utf-8") as f:
+        with open(self.file_path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line:
+                if not line or line.startswith("#"):
                     continue
 
-                # 1. Format Sniffing (Determine JSON vs TSV on the first line)
-                if not sniffed:
-                    if line.startswith("{"):
-                        is_json = True
-                    sniffed = True
-
-                raw_doc = {}
-
-                # 2. Parse based on detected format
-                if is_json:
+                try:
                     raw_doc = json.loads(line)
-                else:
-                    if line.startswith("#"):
-                        if line.startswith("#fields"):
-                            headers = line.split("\t")[1:]
-                        continue
-                    if not headers:
-                        continue
-
-                    values = line.split("\t")
-                    raw_doc = dict(zip(headers, values, strict=False))
-
-                # 3. Map to ECS and yield
-                ecs_doc = self.map_to_ecs(raw_doc)
-                if ecs_doc:
-                    yield ecs_doc
+                    ecs_doc = self.map_to_ecs(raw_doc)
+                    if ecs_doc:
+                        yield ecs_doc
+                except json.JSONDecodeError:
+                    continue
 
     def map_to_ecs(self, raw_doc: dict) -> dict:
         ts_raw = raw_doc.get("ts")
-        if not ts_raw or ts_raw == "-":
+        if not ts_raw:
             return {}
 
-        # Handle ISO or Epoch
         try:
             ts_iso = datetime.fromtimestamp(float(ts_raw), tz=UTC).isoformat()
         except ValueError:
             ts_iso = ts_raw
 
-        def safe_int(val: Any) -> int:
-            try:
-                return int(val) if val and val != "-" else 0
-            except (ValueError, TypeError):
-                return 0
+        # 1. Base ECS Document (Applies to all Zeek logs)
+        doc = {
+            "_original_timestamp": ts_iso,
+            "@timestamp": None,
+            "event": {
+                "kind": "event",
+                "module": "zeek",
+                "dataset": f"zeek.{self.log_type}",
+                "action": "unknown",  # Default, overridden below
+            },
+            # --- NEW: Explicitly define the agent ---
+            "agent": {"type": "zeek"},
+        }
 
-        # Extract the IoT-23 specific labels if they exist
-        label = raw_doc.get("label", "Benign")
-        detailed_label = raw_doc.get("detailed-label")
+        # Safe mapping for Network fields
+        if "id.orig_h" in raw_doc:
+            doc["source"] = {"ip": raw_doc.get("id.orig_h")}
+            if "id.orig_p" in raw_doc:
+                doc["source"]["port"] = int(raw_doc["id.orig_p"])
 
-        return build_network_connection_log(
-            original_timestamp=ts_iso,
-            transport=raw_doc.get("proto", "tcp"),
-            src_ip=raw_doc.get("id.orig_h", ""),
-            src_port=safe_int(raw_doc.get("id.orig_p")),
-            dest_ip=raw_doc.get("id.resp_h", ""),
-            dest_port=safe_int(raw_doc.get("id.resp_p")),
-            total_bytes=safe_int(raw_doc.get("orig_bytes"))
-            + safe_int(raw_doc.get("resp_bytes")),
-            label=label,
-            detailed_label=detailed_label,
-        )
+            doc["destination"] = {"ip": raw_doc.get("id.resp_h")}
+            if "id.resp_p" in raw_doc:
+                doc["destination"]["port"] = int(raw_doc["id.resp_p"])
+
+            doc["network"] = {"transport": raw_doc.get("proto", "tcp").lower()}
+
+        # 2. HTTP Specific Mapping
+        if self.log_type == "http":
+            doc["event"]["category"] = ["network", "web"]
+            doc["event"]["action"] = "http_request"  # --- NEW ---
+            doc["url"] = {"path": raw_doc.get("uri"), "domain": raw_doc.get("host")}
+            doc["http"] = {
+                "request": {"method": raw_doc.get("method")},
+                "response": {"status_code": raw_doc.get("status_code")},
+            }
+
+            # Map the malicious JNDI string
+            if user_agent := raw_doc.get("user_agent"):
+                doc["user_agent"] = {"original": user_agent}
+                doc["message"] = (
+                    f"HTTP {raw_doc.get('method')} {raw_doc.get('uri')} | User-Agent: {user_agent}"
+                )
+
+        # 3. File Mapping (Malicious Java classes downloaded over network)
+        elif self.log_type == "files":
+            doc["event"]["category"] = ["file", "network"]
+            doc["event"]["action"] = "file_transfer"  # --- NEW ---
+            doc["file"] = {
+                "mime_type": raw_doc.get("mime_type"),
+                "size": raw_doc.get("total_bytes"),
+            }
+            doc["message"] = f"Network File Transfer: {raw_doc.get('mime_type')}"
+
+        # 4. Conn Mapping
+        elif self.log_type == "conn":
+            doc["event"]["category"] = ["network"]
+            doc["event"]["type"] = ["connection"]
+            doc["event"]["action"] = "network_flow"  # --- NEW ---
+            doc["message"] = (
+                f"Network Flow: {raw_doc.get('id.orig_h')} -> {raw_doc.get('id.resp_h')}"
+            )
+
+        # 5. Weird Mapping (Zeek anomaly detections)
+        elif self.log_type == "weird":
+            doc["event"]["category"] = ["intrusion_detection"]
+            doc["event"]["action"] = "anomaly_detected"  # --- NEW ---
+            doc["message"] = f"Zeek Anomaly: {raw_doc.get('name')}"
+
+        return doc

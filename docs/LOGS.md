@@ -19,6 +19,16 @@ Because this suite streams data directly to Elasticsearch via the async bulk hel
 uv sync --all-extras
 ```
 
+Ensure you have zeek installed:
+
+```bash
+echo 'deb https://download.opensuse.org/repositories/security:/zeek/xUbuntu_24.04/ /' | sudo tee /etc/apt/sources.list.d/security:zeek.list
+curl -fsSL https://download.opensuse.org/repositories/security:zeek/xUbuntu_24.04/Release.key | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/security_zeek.gpg > /dev/null
+sudo apt update
+sudo apt install zeek-8.0
+sudo apt install suricata
+```
+
 **Step 2. Configure Environment**
 
 Ensure your `.env` file is set up. To work natively with Elastic Security's default dashboards and rules without manual Kibana configuration, use the standard `logs-endpoint.events-*` data stream naming convention.

@@ -48,10 +48,19 @@ class DatasetManager:
                 with zipfile.ZipFile(file_path, "r") as zip_ref:
                     zip_ref.extractall(extract_dir)
 
-            # Assume one main JSON file inside the zip for simplicity
-            json_files = list(extract_dir.glob("*.json"))
-            if not json_files:
-                raise FileNotFoundError(f"No JSON files found in {extract_dir}")
-            return json_files[0]
+            # Look for JSON, PCAP, or raw Zeek logs
+            target_files = (
+                list(extract_dir.glob("*.json"))
+                + list(extract_dir.glob("*.pcap"))
+                + list(extract_dir.glob("*.log"))
+            )
+
+            if not target_files:
+                raise FileNotFoundError(
+                    f"No valid JSON, PCAP, or Log files found in {extract_dir}"
+                )
+
+            # Return the first matching file we care about
+            return target_files[0]
 
         return file_path

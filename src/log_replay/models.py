@@ -155,3 +155,42 @@ def build_network_connection_log(
             }
         }
     return doc
+
+
+def build_suricata_alert_log(raw_doc: dict) -> dict[str, Any]:
+    """Constructs a nested ECS document from Suricata eve.json alerts."""
+    doc = {
+        "_original_timestamp": raw_doc.get("timestamp"),
+        "@timestamp": None,
+        "event": {
+            "kind": "alert",
+            "module": "suricata",
+            "dataset": "suricata.eve",
+            "category": ["intrusion_detection"],
+            "type": ["info"],
+        },
+        "observer": {"name": socket.gethostname(), "type": "ids"},
+        "network": {
+            "transport": raw_doc.get("proto"),
+            "protocol": raw_doc.get("app_proto"),
+        },
+        "source": {"ip": raw_doc.get("src_ip"), "port": raw_doc.get("src_port")},
+        "destination": {"ip": raw_doc.get("dest_ip"), "port": raw_doc.get("dest_port")},
+    }
+
+    # Map the deep Suricata Alert forensics
+    if alert := raw_doc.get("alert"):
+        doc["threat"] = {
+            "enrichment": {
+                "indicator": {
+                    "matched": True,
+                    "type": alert.get("category"),
+                    "description": alert.get("signature"),
+                    "reference": f"sid:{alert.get('signature_id')}",
+                }
+            }
+        }
+        # Include severity (Suricata uses 1 for high, 3 for low)
+        doc["event"]["severity"] = alert.get("severity")
+
+    return {k: v for k, v in doc.items() if v}

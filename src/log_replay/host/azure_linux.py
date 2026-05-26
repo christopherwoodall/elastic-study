@@ -1,10 +1,12 @@
 import json
 import shlex
-import xmltodict
-from typing import Any
 from collections.abc import AsyncGenerator
+from typing import Any
+
+import xmltodict
 
 from log_replay.schemas import DatasetReader
+
 
 class AzureHostReader(DatasetReader):
     """
@@ -14,6 +16,7 @@ class AzureHostReader(DatasetReader):
 
     async def stream_ecs_documents(self) -> AsyncGenerator[dict[str, Any]]:
         import gzip
+
         open_func = gzip.open if self.file_path.suffix == ".gz" else open
 
         with open_func(self.file_path, "rt", encoding="utf-8") as f:
@@ -52,7 +55,11 @@ class AzureHostReader(DatasetReader):
         system = event.get("System", {})
 
         event_data_raw = event.get("EventData", {}).get("Data", [])
-        event_data = {item["@Name"]: item.get("#text") for item in event_data_raw if isinstance(item, dict)}
+        event_data = {
+            item["@Name"]: item.get("#text")
+            for item in event_data_raw
+            if isinstance(item, dict)
+        }
 
         host_ip = raw_doc.get("HostIP")
         event_id = str(system.get("EventID"))
@@ -63,7 +70,7 @@ class AzureHostReader(DatasetReader):
             "5": "process_terminated",
             "9": "raw_access_read",
             "10": "process_accessed",
-            "11": "file_creation"
+            "11": "file_creation",
         }
 
         # 1. Base ECS Document
@@ -78,27 +85,21 @@ class AzureHostReader(DatasetReader):
                 "code": event_id,
                 "action": sysmon_action_map.get(event_id, "unknown"),
                 "provider": "Linux-Sysmon",
-                "original": xml_string
+                "original": xml_string,
             },
-            "agent": {
-                "type": raw_doc.get("ProcessName", "sysmon").lower()
-            },
+            "agent": {"type": raw_doc.get("ProcessName", "sysmon").lower()},
             "host": {
                 "name": raw_doc.get("HostName"),
                 "ip": host_ip,
-                "os": {"family": "linux"}
+                "os": {"family": "linux"},
             },
             "process": {
                 "pid": event_data.get("ProcessId"),
                 "executable": event_data.get("Image"),
-                "name": str(event_data.get("Image", "")).split("/")[-1]
+                "name": str(event_data.get("Image", "")).split("/")[-1],
             },
-            "user": {
-                "name": event_data.get("User")
-            },
-            "source": {
-                "ip": host_ip
-            }
+            "user": {"name": event_data.get("User")},
+            "source": {"ip": host_ip},
         }
 
         # 2. Dynamic Network Mapping (For Sysmon Event ID 3)
@@ -112,10 +113,14 @@ class AzureHostReader(DatasetReader):
         if "DestinationIp" in event_data:
             doc.setdefault("destination", {})["ip"] = event_data["DestinationIp"]
         if "DestinationPort" in event_data:
-            doc.setdefault("destination", {})["port"] = int(event_data["DestinationPort"])
+            doc.setdefault("destination", {})["port"] = int(
+                event_data["DestinationPort"]
+            )
 
         if "Protocol" in event_data:
-            doc.setdefault("network", {})["transport"] = str(event_data["Protocol"]).lower()
+            doc.setdefault("network", {})["transport"] = str(
+                event_data["Protocol"]
+            ).lower()
 
         return doc
 
@@ -146,27 +151,23 @@ class AzureHostReader(DatasetReader):
                 "kind": "event",
                 "module": "auditd",
                 "dataset": "linux.auditd",
-                "action": "executed" if kv_pairs.get("syscall") == "execve" else "unknown",
-                "original": syslog_msg
+                "action": "executed"
+                if kv_pairs.get("syscall") == "execve"
+                else "unknown",
+                "original": syslog_msg,
             },
-            "agent": {
-                "type": raw_doc.get("ProcessName", "auditd").lower()
-            },
+            "agent": {"type": raw_doc.get("ProcessName", "auditd").lower()},
             "host": {
                 "name": raw_doc.get("HostName"),
                 "ip": host_ip,
-                "os": {"family": "linux"}
+                "os": {"family": "linux"},
             },
             "process": {
                 "pid": kv_pairs.get("pid"),
                 "parent": {"pid": kv_pairs.get("ppid")},
                 "executable": kv_pairs.get("exe"),
-                "command_line": kv_pairs.get("proctitle")
+                "command_line": kv_pairs.get("proctitle"),
             },
-            "user": {
-                "name": kv_pairs.get("user")
-            },
-            "source": {
-                "ip": host_ip
-            }
+            "user": {"name": kv_pairs.get("user")},
+            "source": {"ip": host_ip},
         }
