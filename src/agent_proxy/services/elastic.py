@@ -95,10 +95,10 @@ class ElasticService:
         # Sink Step B: Elasticsearch Push
         try:
             await self.client.index(
-                index=ELASTIC_INDEX, id=doc["request_id"], document=doc
+                index=ELASTIC_INDEX, id=doc["event.id"], document=doc
             )
         except Exception as exc:
-            msg = f"ES indexing failed for request_id={doc.get('request_id')}: {exc}"
+            msg = f"ES indexing failed for event.id={doc.get('event.id')}: {exc}"
             if STRICT_MODE:
                 raise
             logger.error(msg)

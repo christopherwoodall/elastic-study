@@ -1,5 +1,3 @@
-import os
-import socket
 import time
 import uuid
 from datetime import UTC, datetime
@@ -10,7 +8,9 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from agent_proxy.config import OPENROUTER_KEY, STRICT_MODE
 from agent_proxy.logger import logger
-from agent_proxy.models import ProxyLogDocument
+
+# from agent_proxy.models import ProxyLogDocument
+from agent_proxy.models import build_otel_ecs_document
 from agent_proxy.parsers import (
     _extract_last_message,
     _extract_latest_user_prompt,
@@ -41,7 +41,7 @@ def _build_forward_url(path: str, query_params: str) -> tuple[str, str]:
 
 async def _handle_streaming(
     upstream_response: httpx.Response,
-    doc_template: ProxyLogDocument,
+    request_state: dict,
     headers: dict,
     content_type: str,
     start_time: float,
@@ -61,12 +61,20 @@ async def _handle_streaming(
         # When the stream finishes, reconstruct and log
         parsed_response = parse_body(bytes(accumulated_bytes))
 
-        doc_template.usage = _extract_usage(parsed_response)
-        doc_template.duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
-        doc_template.status_code = upstream_response.status_code
-        doc_template.response_body = parsed_response
+        otel_doc = build_otel_ecs_document(
+            **request_state,
+            response_body=parsed_response,
+            status_code=upstream_response.status_code,
+            usage=_extract_usage(parsed_response),
+            last_message=_extract_last_message(parsed_response),
+        )
+        # doc_template.usage = _extract_usage(parsed_response)
+        # doc_template.duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        # doc_template.status_code = upstream_response.status_code
+        # doc_template.response_body = parsed_response
 
-        es_service.fire_and_forget(doc_template.to_dict())
+        es_service.fire_and_forget(otel_doc)
+        # es_service.fire_and_forget(doc_template.to_dict())
 
     return StreamingResponse(
         content=stream_and_log(),
@@ -78,7 +86,7 @@ async def _handle_streaming(
 
 async def _handle_standard(
     upstream_response: httpx.Response,
-    doc_template: ProxyLogDocument,
+    request_state: dict,
     headers: dict,
     content_type: str,
     start_time: float,
@@ -92,14 +100,17 @@ async def _handle_standard(
     # restored_text = dlp_service.deanonymize(request_id, response_text)
     # restored_bytes = restored_text.encode("utf-8")
 
-    doc_template.duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
-    doc_template.usage = _extract_usage(parsed_response)
-    doc_template.status_code = upstream_response.status_code
-    doc_template.response_body = parsed_response
+    otel_doc = build_otel_ecs_document(
+        **request_state,
+        response_body=parsed_response,
+        status_code=upstream_response.status_code,
+        usage=_extract_usage(parsed_response),
+        last_message=_extract_last_message(parsed_response),
+    )
 
     if STRICT_MODE:
         try:
-            await es_service.index_log(doc_template.to_dict())
+            await es_service.index_log(otel_doc)
         except Exception as exc:
             logger.error("STRICT_MODE: ES logging failed, returning 500. %s", exc)
             return JSONResponse(
@@ -107,7 +118,7 @@ async def _handle_standard(
                 content={"error": "logging_failure", "detail": str(exc)},
             )
     else:
-        es_service.fire_and_forget(doc_template.to_dict())
+        es_service.fire_and_forget(otel_doc)
 
     return Response(
         content=upstream_response.content,
@@ -129,7 +140,7 @@ async def proxy_route(path: str, request: Request) -> Response:
 
     # 1. Parse Context
     request_id = str(uuid.uuid4())
-    timestamp = datetime.now(UTC).isoformat()
+    _timestamp = datetime.now(UTC).isoformat()
     body_bytes: bytes = await request.body()
     request_body = parse_body(body_bytes)
 
@@ -155,22 +166,32 @@ async def proxy_route(path: str, request: Request) -> Response:
         forward_headers["authorization"] = f"Bearer {OPENROUTER_KEY}"
 
     # 4. Base Document for Elasticsearch
-    doc_template = ProxyLogDocument(
-        request_id=request_id,
-        timestamp=timestamp,
-        method=request.method,
-        path=f"/{clean_path}",
-        request_body=request_body,
-        # Enrichment Fields populated here:
-        hostname=socket.gethostname(),
-        environment=os.environ.get("ENVIRONMENT", "development"),
-        client_ip=client_ip,
-        user_agent=request.headers.get("user-agent"),
-        # Custom Extractors
-        latest_user_prompt=_extract_latest_user_prompt(request_body),
-        last_message=_extract_last_message(request_body),
-        usage=_extract_usage(request_body),
-    )
+    request_state = {
+        "request_id": request_id,
+        "method": request.method,
+        "path": f"/{clean_path}",
+        "start_time": start_time,
+        "request_body": request_body,
+        "client_ip": client_ip,
+        "user_agent": request.headers.get("user-agent"),
+        "latest_user_prompt": _extract_latest_user_prompt(request_body),
+    }
+    # doc_template = ProxyLogDocument(
+    #     request_id=request_id,
+    #     timestamp=timestamp,
+    #     method=request.method,
+    #     path=f"/{clean_path}",
+    #     request_body=request_body,
+    #     # Enrichment Fields populated here:
+    #     hostname=socket.gethostname(),
+    #     environment=os.environ.get("ENVIRONMENT", "development"),
+    #     client_ip=client_ip,
+    #     user_agent=request.headers.get("user-agent"),
+    #     # Custom Extractors
+    #     latest_user_prompt=_extract_latest_user_prompt(request_body),
+    #     last_message=_extract_last_message(request_body),
+    #     usage=_extract_usage(request_body),
+    # )
 
     # 5. Execute Upstream Request
     client = http_proxy.get()
@@ -196,9 +217,9 @@ async def proxy_route(path: str, request: Request) -> Response:
 
     if "text/event-stream" in content_type:
         return await _handle_streaming(
-            upstream_response, doc_template, response_headers, content_type, start_time
+            upstream_response, request_state, response_headers, content_type, start_time
         )
 
     return await _handle_standard(
-        upstream_response, doc_template, response_headers, content_type, start_time
+        upstream_response, request_state, response_headers, content_type, start_time
     )
