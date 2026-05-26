@@ -1,6 +1,6 @@
 import asyncio
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from dateutil import parser as date_parser
 from elasticsearch import AsyncElasticsearch
@@ -39,11 +39,6 @@ class LogReplayer:
             delta_seconds = (original_time - first_event_time).total_seconds()
 
             # Shift the SIEM/ECS @timestamp chronologically
-            shifted_time = (
-                base_timestamp + asyncio.get_running_loop().time()
-            )  # Use reliable monotonic clock for delta if needed, but timedelta is better:
-            from datetime import timedelta
-
             shifted_time = base_timestamp + timedelta(seconds=delta_seconds)
             ecs_doc["@timestamp"] = shifted_time.isoformat()
 
@@ -57,7 +52,11 @@ class LogReplayer:
                 if sleep_duration > 0.05:  # Prevent micro-sleep CPU thrashing
                     await asyncio.sleep(sleep_duration)
 
-            yield {"_index": self.target_index, "_source": ecs_doc}
+            yield {
+                "_op_type": "create",
+                "_index": self.target_index,
+                "_source": ecs_doc,
+            }
 
     async def replay(
         self,
@@ -84,8 +83,15 @@ class LogReplayer:
             actions=doc_generator,
             chunk_size=chunk_size,
             raise_on_error=False,
-            stats_only=True,
+            stats_only=False,
         )
+
+        if errors:
+            # Print the first error payload to instantly identify the mapping conflict
+            logger.error(
+                f"Elasticsearch rejected some documents. Sample error reason: {errors[0]}"
+            )
+
         logger.info(
             f"Replay complete. Successfully ingested {successes} logs. Errors: {errors}"
         )

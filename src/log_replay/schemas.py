@@ -1,3 +1,4 @@
+import gzip
 import json
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
@@ -12,8 +13,12 @@ class DatasetReader(ABC):
         self.file_path = file_path
 
     async def stream_ecs_documents(self) -> AsyncGenerator[dict[str, Any]]:
-        """Streams normalized ECS documents line by line."""
-        with open(self.file_path, encoding="utf-8") as f:
+        """Streams normalized ECS documents line by line natively or from a gzip."""
+        # Dynamically switch to gzip if the file is compressed
+        open_func = gzip.open if self.file_path.suffix == ".gz" else open
+
+        # 'rt' means Read Text (decodes bytes to strings automatically)
+        with open_func(self.file_path, "rt", encoding="utf-8") as f:
             for line in f:
                 if not line.strip():
                     continue
