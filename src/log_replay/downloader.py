@@ -3,7 +3,7 @@ from pathlib import Path
 
 import httpx
 
-from log_replay.logger import logger
+from log_replay.logging import logger
 
 # logger = logging.getLogger(__name__)
 

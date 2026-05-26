@@ -6,7 +6,7 @@ from dateutil import parser as date_parser
 from elasticsearch import AsyncElasticsearch
 from elasticsearch.helpers import async_bulk
 
-from log_replay.logger import logger
+from log_replay.logging import logger
 from log_replay.schemas import DatasetReader
 
 # logger = logging.getLogger(__name__)
