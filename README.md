@@ -13,6 +13,7 @@ The platform includes isolated, performance-critical extension packages designed
 
 * **[LLM Benchmarking Engine (`./docs/BENCHMARKING.md`)](https://www.google.com/search?q=%5Bhttps://www.google.com/search%3Fq%3D./docs/BENCHMARKING.md%5D(https://www.google.com/search%3Fq%3D./docs/BENCHMARKING.md))**: Hardware-native suite utilizing 4-bit quantization via `bitsandbytes` to measure exact latency telemetry, throughput metrics (TPS), and lexical correctness profiles of local 8B+ models (e.g., Nvidia's Nemotron Diffusion) executing directly on a consumer GPU.
 * **[Vector RAG Pipeline (`./docs/RAG.md`)](https://www.google.com/search?q=%5Bhttps://www.google.com/search%3Fq%3D./docs/RAG.md%5D(https://www.google.com/search%3Fq%3D./docs/RAG.md))**: Self-contained retrieval-augmented generation engine integrating an asynchronous kNN vector search against a dense vector mapping space inside Elasticsearch 9.x using a local text embedder (`all-MiniLM-L6-v2`) and an upstream OpenRouter LLM provider (`moonshotai/kimi-k2.5`).
+* **[Host and Network Telemetry Replayer (`./docs/REPLAYER.md`)](https://www.google.com/search?q=%5Bhttps://www.google.com/search%3Fq%3D./docs/REPLAYER.md%5D(https://www.google.com/search%3Fq%3D./docs/REPLAYER.md))**: High-throughput asyncio-based log replay system designed to simulate real-world network traffic patterns by ingesting Zeek and Suricata logs or PCAP files, with built-in support for backpressure handling and configurable speed multipliers to test Elasticsearch cluster performance under varying load conditions.
 
 ---
 
