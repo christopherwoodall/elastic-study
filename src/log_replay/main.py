@@ -70,14 +70,12 @@ async def run_replay():
                 for z_log in zeek_log_files:
                     logger.info(f"Ingesting Zeek log: {z_log.name}...")
                     zeek_reader = ZeekLogReader(z_log)
+                    # Ingest network events at full speed (0 multiplier) in larger chunks to simulate high-throughput scenarios
                     await replayer.replay(
                         zeek_reader, speed_multiplier=0, chunk_size=500
                     )
             except Exception as e:
                 logger.error(f"Zeek pipeline failed: {e}")
-
-        # Ingest network events at full speed (0 multiplier) in larger chunks to simulate high-throughput scenarios
-        await replayer.replay(reader, speed_multiplier=0, chunk_size=500)
 
     await es.close()
 
