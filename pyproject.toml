@@ -26,6 +26,9 @@ dependencies = [
     "elasticsearch[async]==9.0.0",
     "python-dotenv==1.2.2",
     "httpx==0.28.1",
+    "opentelemetry-api==1.42.0",
+    "opentelemetry-sdk==1.42.0",
+    "opentelemetry-semantic-conventions==0.63b0",
 ]
 
 # =============================================================
@@ -74,6 +77,9 @@ rag-hydrate-logs = "agent_rag.main:hydrate_logs"
 # Benchmarking
 benchmark-run = "llm_benchmark.main:start"
 benchmark-hydrate = "llm_benchmark.main:hydrate"
+
+# Log Replay
+log-replay = "log_replay.main:main"
 
 # Helpful utilities for development and debugging
 docker-helper = "agent_proxy.helpers.docker_helper:main"
