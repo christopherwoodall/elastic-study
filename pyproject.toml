@@ -54,6 +54,12 @@ log_replay = [
     "xmltodict==1.0.4",
 ]
 
+# Agent MCP
+agent_mcp = [
+    "mcp[cli]==1.27.1",
+    "tenacity==9.1.4",
+]
+
 # Development & Testing
 dev = [
     "pytest==9.0.3",
@@ -85,6 +91,9 @@ benchmark-hydrate = "llm_benchmark.main:hydrate"
 
 # Log Replay
 log-replay = "log_replay.main:main"
+
+# Agent MCP
+start-mcp = "agent_mcp.main:start"
 
 # Helpful utilities for development and debugging
 docker-helper = "agent_proxy.helpers.docker_helper:main"
