@@ -1,28 +1,74 @@
 // https://opencode.ai/docs/config/
 {
-  "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "bash": {
-      "*": "allow",
-      "rm -rf *": "deny",
-      "sudo *": "ask"
-    }
-  },
-  "provider": {
-    "openrouter-audit": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Audit Proxy (OpenRouter)",
-      "options": {
-        "apiKey": "{env:OPENROUTER_API_KEY}",
-        "baseURL": "http://localhost:8000/v1",  // Change this to "http://host.docker.internal:8000/v1" if running the agent inside a Docker container
-        "headers": {
-           "HTTP-Referer": "http://localhost:8000",  // Change this to "http://host.docker.internal:8000" if running the agent inside a Docker container
-           "X-Title": "OpenCode Audit Proxy"
+    "$schema": "https://opencode.ai/config.json",
+    // =============================================================
+    // Agent Configuration
+    // =============================================================
+    "permission": {
+        "bash": {
+            "*": "allow",
+            "rm -rf *": "deny",
+            "sudo *": "ask"
+        },
+        // "read": {
+        //     "../workspace/**": "allow",
+        //     "**": "deny"
+        // },
+        // "edit": {
+        //     "../workspace/**": "allow",
+        //     "**": "deny"
+        // },
+        // "list": {
+        //     "../workspace/**": "allow",
+        //     "**": "deny"
+        // },
+        // "glob": {
+        //     "../workspace/**": "allow",
+        //     "**": "deny"
+        // },
+        // "grep": {
+        //     "../workspace/**": "allow",
+        //     "**": "deny"
+        // },
+
+        "external_directory": "deny"
+    },
+    // =============================================================
+    // Provider Configuration
+    // =============================================================
+    "provider": {
+        "openrouter-audit": {
+            "npm": "@ai-sdk/openai-compatible",
+            "name": "Audit Proxy (OpenRouter)",
+            "options": {
+                "apiKey": "{env:OPENROUTER_API_KEY}",
+                "baseURL": "http://localhost:8000/v1",  // Change this to "http://host.docker.internal:8000/v1" if running the agent inside a Docker container
+                "headers": {
+                     "HTTP-Referer": "http://localhost:8000",  // Change this to "http://host.docker.internal:8000" if running the agent inside a Docker container
+                     "X-Title": "OpenCode Audit Proxy"
+                }
+            },
+            "models": {
+                "moonshotai/kimi-k2.5": { "name": "Kimi k2.5 (Proxied)" }
+            }
         }
-      },
-      "models": {
-        "moonshotai/kimi-k2.5": { "name": "Kimi k2.5 (Proxied)" }
-      }
+    },
+    // =============================================================
+    // MCP Configuration
+    // =============================================================
+    "mcp": {
+        "elastic-analytics": {
+            // Remote/SSE MCP Configuration
+            "type": "remote",
+            "url": "http://localhost:8001/sse",
+            "enabled": true
+            // Local MCP Configuration
+            // "type": "local",
+            // "command": ["uv", "run", "start-mcp"],
+            // "enabled": true,
+            // "environment": {
+            //     "ELASTIC_URL": "http://localhost:9200"
+            // }
+        }
     }
-  }
 }

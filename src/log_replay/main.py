@@ -17,8 +17,8 @@ from log_replay.network.zeek_pcap import process_pcap_with_zeek
 load_dotenv()
 
 BASE_URL = os.getenv("REPLAY_LOG_BASE_URL")
-HOST_FILES = json.loads(os.getenv("REPLAY_LOG_HOST_FILES", "[]"))
-NETWORK_FILES = json.loads(os.getenv("REPLAY_LOG_NET_FILES", "[]"))
+HOST_FILES = json.loads(os.getenv("REPLAY_LOG_HOST_FILES", "[]").strip("'"))
+NETWORK_FILES = json.loads(os.getenv("REPLAY_LOG_NET_FILES", "[]").strip("'"))
 
 
 async def run_replay():

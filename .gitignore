@@ -7,6 +7,7 @@ workspace/*
 !workspace/AGENT OUTPUT GOES HERE
 !workspace/game.py
 !workspace/organize_files.py
+!workspace/log4shell_analysis_report.md
 
 # opencode artifacts
 node_modules/
